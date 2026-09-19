@@ -26,12 +26,12 @@
       .intro-copy strong { color:var(--ink); }
       .signal { white-space:nowrap; display:flex; align-items:center; gap:7px; font-size:12px; font-weight:700; }
       .signal i { width:9px; height:9px; border:2px solid var(--ink); border-radius:50%; background:#75d787; }
-      .reset-card { position:relative; overflow:hidden; background:var(--card); border:3px solid var(--ink); border-radius:22px; box-shadow:7px 7px 0 var(--ink); padding:28px 34px 30px; background-image:radial-gradient(#e8e3d7 1.5px,transparent 1.5px); background-size:19px 19px; }
+      .reset-card { position:relative; overflow:hidden; background:var(--card); border:3px solid var(--ink); border-radius:22px; box-shadow:7px 7px 0 var(--ink); padding:25px 30px 24px; background-image:radial-gradient(#e8e3d7 1.5px,transparent 1.5px); background-size:19px 19px; }
       .reset-card::before { content:"重置公告"; position:absolute; top:-2px; right:30px; background:var(--orange); color:#fff; border:2px solid var(--ink); border-top:0; padding:9px 16px 10px; font-size:13px; font-weight:800; transform:rotate(2deg); }
       .eyebrow { margin:0 0 13px; font-size:13px; font-weight:800; letter-spacing:.13em; color:#5c5347; }
-      .reset-main { display:flex; align-items:end; justify-content:space-between; gap:18px; }
-      .reset-number { display:inline-block; transform:rotate(-1deg); background:var(--sun); border-radius:17px; padding:3px 15px 5px; font:800 83px/1.12 GenSen,Baloo,sans-serif; letter-spacing:-4px; }
-      .reset-side { min-height:216px; flex:1; display:flex; flex-direction:column; align-items:flex-end; justify-content:space-between; padding:29px 8px 6px 0; }
+      .reset-main { display:flex; align-items:end; justify-content:space-between; gap:24px 52px; }
+      .reset-number { display:inline-block; transform:rotate(-1deg); background:var(--sun); border-radius:14px; padding:3px 13px 5px; font:800 68px/1.12 GenSen,Baloo,sans-serif; letter-spacing:-3px; }
+      .reset-side { flex:1; display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:18px; padding:0 8px 3px 0; }
       .reset-type { border:2px solid var(--ink); border-radius:999px; background:#fff; padding:5px 11px; font-size:12px; font-weight:800; white-space:nowrap; }
       .reset-date { margin:18px 0 7px; font:600 13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
       .reset-quote { margin:0; color:#5d544a; font-size:15px; }
@@ -151,7 +151,7 @@
       .reset-plea-burst-avatar { object-fit:cover; border-radius:50%; width:100%; height:100%; }
       @keyframes reset-plea-burst { 0% { opacity:1; transform:translate(-50%,-50%) rotate(var(--burst-rotate,0deg)) scale(.8); } 65% { opacity:1; } to { opacity:0; transform:translate(calc(-50% + var(--burst-x,0px)),calc(-50% + var(--burst-y,-70px))) rotate(var(--burst-rotate,0deg)) scale(1.08); } }
       @media(max-width:1230px) { .rail { display:none; } }
-      @media(max-width:700px) { .shell { width:min(100% - 28px,808px); padding-top:18px; } .brand { font-size:30px; } .brand-sub,.mast .nav-pill:nth-last-child(2),.signal { display:none; } .intro { margin:22px 0 15px; } .reset-card { padding:23px 20px; } .reset-number { font-size:58px; } .reset-main { align-items:center; } .reset-side { min-height:150px; padding-top:10px; } .heat-scroll { overflow-x:auto; } .history-row { grid-template-columns:78px 1fr 18px; gap:9px; padding:11px; } .feature { grid-template-columns:1fr; } .feature-art { min-height:105px; } .article-grid { grid-template-columns:1fr; } .cell-tooltip { padding:13px 16px 14px; } .cell-tooltip-date { font-size:15px; } .cell-tooltip-copy { font-size:13px; } }
+      @media(max-width:700px) { .shell { width:min(100% - 28px,808px); padding-top:18px; } .brand { font-size:30px; } .brand-sub,.mast .nav-pill:nth-last-child(2),.signal { display:none; } .intro { margin:22px 0 15px; } .reset-card { padding:23px 20px; } .reset-number { font-size:58px; } .reset-main { align-items:center; gap:16px; } .reset-side { gap:12px; padding:0; } .heat-scroll { overflow-x:auto; } .history-row { grid-template-columns:78px 1fr 18px; gap:9px; padding:11px; } .feature { grid-template-columns:1fr; } .feature-art { min-height:105px; } .article-grid { grid-template-columns:1fr; } .cell-tooltip { padding:13px 16px 14px; } .cell-tooltip-date { font-size:15px; } .cell-tooltip-copy { font-size:13px; } }
     </style>
   </head>
   <body>
