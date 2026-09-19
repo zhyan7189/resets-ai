@@ -150,7 +150,44 @@
       .reset-plea-burst--avatar { width:var(--burst-size,32px); height:var(--burst-size,32px); border:2px solid var(--ink); background:var(--sun); box-shadow:2px 2px 0 var(--ink); border-radius:50%; padding:2px; display:grid; overflow:hidden; }
       .reset-plea-burst-avatar { object-fit:cover; border-radius:50%; width:100%; height:100%; }
       @keyframes reset-plea-burst { 0% { opacity:1; transform:translate(-50%,-50%) rotate(var(--burst-rotate,0deg)) scale(.8); } 65% { opacity:1; } to { opacity:0; transform:translate(calc(-50% + var(--burst-x,0px)),calc(-50% + var(--burst-y,-70px))) rotate(var(--burst-rotate,0deg)) scale(1.08); } }
+      .reset-side { align-items:stretch; gap:6px; padding:0; }
+      .reset-side .reset-type { align-self:flex-end; }
+      .workbench { position:relative; min-height:176px; display:flex; align-items:end; justify-content:center; }
+      .workbench-scene { position:relative; width:min(100%,430px); min-height:170px; display:flex; align-items:end; justify-content:center; }
+      .coder-illustration { width:min(100%,280px); height:175px; overflow:visible; }
+      .coder-shadow { fill:#b7c9ea; opacity:.7; }
+      .coder-monitor { fill:#d7e6ff; stroke:var(--ink); stroke-width:3; }
+      .coder-monitor-screen { fill:#fafdff; stroke:var(--ink); stroke-width:2; }
+      .coder-code { fill:none; stroke:#6754dc; stroke-width:3; stroke-linecap:round; }
+      .coder-code--mint { stroke:#52cdbd; }
+      .coder-desk { fill:#80e8d8; stroke:var(--ink); stroke-width:3; }
+      .coder-chair { fill:#e3d9ff; stroke:var(--ink); stroke-width:3; }
+      .coder-body { fill:#6754dc; stroke:var(--ink); stroke-width:3; }
+      .coder-shirt { fill:#80e8d8; stroke:var(--ink); stroke-width:3; }
+      .coder-hair { fill:#192753; stroke:var(--ink); stroke-width:3; }
+      .coder-arm { fill:none; stroke:#192753; stroke-width:9; stroke-linecap:round; }
+      .coder-hand { fill:#ffb88f; stroke:var(--ink); stroke-width:2.5; }
+      .coder-pain-mark { fill:#6754dc; font:800 22px GenSen,Baloo,sans-serif; opacity:0; transform-origin:178px 103px; }
+      .pinch-hand { opacity:0; transform:translateX(28px) scale(.75); transform-origin:181px 112px; }
+      .pinch-hand path { fill:#ffb88f; stroke:var(--ink); stroke-width:3; stroke-linejoin:round; }
+      .coder-programmer { transform-origin:170px 136px; animation:coder-type 2.2s ease-in-out infinite; }
+      .coder-code { animation:code-cursor 1.8s steps(2,end) infinite; }
+      .workbench-scene.is-pinched .coder-programmer { animation:coder-pain .58s cubic-bezier(.34,1.56,.64,1); }
+      .workbench-scene.is-pinched .pinch-hand { animation:pinch-waist .58s cubic-bezier(.34,1.56,.64,1) forwards; }
+      .workbench-scene.is-pinched .coder-pain-mark { animation:pain-mark .58s ease-out forwards; }
+      @keyframes coder-pain { 0%,100% { transform:translateX(0) rotate(0); } 22% { transform:translateX(-6px) rotate(-5deg); } 45% { transform:translateX(6px) rotate(5deg); } 68% { transform:translateX(-3px) rotate(-2deg); } }
+      @keyframes coder-type { 0%,100% { transform:translateY(0) rotate(0); } 45% { transform:translateY(1px) rotate(-.8deg); } 55% { transform:translateY(0) rotate(.6deg); } }
+      @keyframes code-cursor { 0%,45% { opacity:1; } 46%,100% { opacity:.42; } }
+      @keyframes pinch-waist { 0% { opacity:0; transform:translateX(28px) scale(.75) rotate(8deg); } 28% { opacity:1; transform:translateX(0) scale(1) rotate(0); } 55% { opacity:1; transform:translateX(3px) scale(.95) rotate(-4deg); } 100% { opacity:0; transform:translateX(28px) scale(.75) rotate(8deg); } }
+      @keyframes pain-mark { 0%,100% { opacity:0; transform:scale(.65) rotate(-10deg); } 30%,62% { opacity:1; transform:scale(1.1) rotate(8deg); } }
+      .reset-plea { position:absolute; right:4px; bottom:1px; z-index:3; }
+      .reset-plea-button { min-height:31px; border-radius:10px; padding:5px 9px; gap:5px; font-size:11px; }
+      .reset-plea-button-emoji { font-size:15px; }
+      .reset-plea-button-label { white-space:nowrap; }
+      .reset-plea-count { font-size:11px; }
+      @media(max-width:700px) { .workbench { min-height:144px; } .workbench-scene { min-height:140px; } .coder-illustration { height:145px; } .reset-plea { right:0; } }
       @media(max-width:1230px) { .rail { display:none; } }
+      @media(prefers-reduced-motion:reduce) { .coder-programmer,.coder-code { animation:none; } }
       @media(max-width:700px) { .shell { width:min(100% - 28px,808px); padding-top:18px; } .brand { font-size:30px; } .brand-sub,.mast .nav-pill:nth-last-child(2),.signal { display:none; } .intro { margin:22px 0 15px; } .reset-card { padding:23px 20px; } .reset-number { font-size:58px; } .reset-main { align-items:center; gap:16px; } .reset-side { gap:12px; padding:0; } .heat-scroll { overflow-x:auto; } .history-row { grid-template-columns:78px 1fr 18px; gap:9px; padding:11px; } .feature { grid-template-columns:1fr; } .feature-art { min-height:105px; } .article-grid { grid-template-columns:1fr; } .cell-tooltip { padding:13px 16px 14px; } .cell-tooltip-date { font-size:15px; } .cell-tooltip-copy { font-size:13px; } }
     </style>
   </head>
@@ -175,7 +212,7 @@
         <div class="intro"><p class="intro-copy"><strong>关注 Codex 重置公告，</strong>也发现值得实践的 AI 机会。</p><span class="signal"><i></i>公开公告追踪中</span></div>
         <section class="reset-card" aria-label="最新重置公告">
           <p class="eyebrow">最近一次 CODEX 额度重置</p>
-          <div class="reset-main"><span class="reset-number" id="reset-relative">加载中</span><div class="reset-side"><span class="reset-type" id="reset-type">● 等待数据</span><section class="reset-plea" id="reset-plea" data-mode="beg" aria-label="求重置"><div class="reset-plea-action"><button class="reset-plea-button" id="reset-plea-button" type="button" aria-label="求一次重置" title="求一次重置"><span class="reset-plea-button-emoji" aria-hidden="true">🙏</span><span class="reset-plea-button-label" id="reset-plea-label">求重置</span><span class="reset-plea-count-slot"><span class="reset-plea-count reset-plea-count-sizer" id="reset-plea-count-sizer" aria-hidden="true">1,201,923</span><span class="reset-plea-count" id="reset-plea-count" role="status" aria-live="polite" aria-atomic="true" aria-label="互动次数暂不可用">—</span></span></button><span class="reset-plea-bursts" id="reset-plea-bursts" aria-hidden="true"></span></div></section></div></div>
+          <div class="reset-main"><span class="reset-number" id="reset-relative">加载中</span><div class="reset-side"><span class="reset-type" id="reset-type">● 等待数据</span><div class="workbench"><div class="workbench-scene" id="workbench-scene"><svg class="coder-illustration" viewBox="0 0 280 175" role="img" aria-label="正在埋头写代码的程序员"><ellipse class="coder-shadow" cx="140" cy="162" rx="112" ry="9"/><g class="coder-monitor"><rect x="25" y="15" width="128" height="85" rx="10"/><rect class="coder-monitor-screen" x="37" y="27" width="104" height="60" rx="5"/><path class="coder-code" d="M49 42h33M49 53h50M49 64h22M49 75h42"/><path class="coder-code coder-code--mint" d="M110 42h18M88 64h32M103 75h25"/><path d="M82 101h14l-4 14H72zM61 116h57" fill="none" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/></g><path class="coder-desk" d="M34 132h177l-9 22H43z"/><g class="coder-chair"><path d="M188 84h30v58h-30z"/><path d="M181 137h45v10h-45z"/></g><g class="coder-programmer"><path class="coder-body" d="M145 89c18-8 36-4 47 12l8 34h-66l5-31c1-7 3-12 6-15z"/><path class="coder-shirt" d="M151 91c8-3 18-3 25 1l11 43h-50l5-29c1-7 4-12 9-15z"/><ellipse class="coder-hair" cx="165" cy="76" rx="20" ry="23"/><path class="coder-hair" d="M146 73c5-18 30-27 43-8-12-4-29 1-43 8z"/><path class="coder-arm" d="M153 104l-17 30M182 104l18 29"/><ellipse class="coder-hand" cx="135" cy="135" rx="7" ry="5"/><ellipse class="coder-hand" cx="201" cy="134" rx="7" ry="5"/><text class="coder-pain-mark" x="174" y="103">!</text></g><g class="pinch-hand" aria-hidden="true"><path d="M224 94c-9 2-16 9-20 18l-7 15 8 5 8-13 2 13 8 1 1-16 8 10 7-5-11-15c-2-3-1-10-4-13z"/></g></svg><section class="reset-plea" id="reset-plea" data-mode="beg" aria-label="快重置"><div class="reset-plea-action"><button class="reset-plea-button" id="reset-plea-button" type="button" aria-label="快重置" title="快重置"><span class="reset-plea-button-emoji" aria-hidden="true">⚡</span><span class="reset-plea-button-label" id="reset-plea-label">快重置</span><span class="reset-plea-count-slot"><span class="reset-plea-count reset-plea-count-sizer" id="reset-plea-count-sizer" aria-hidden="true">1,201,923</span><span class="reset-plea-count" id="reset-plea-count" role="status" aria-live="polite" aria-atomic="true" aria-label="互动次数暂不可用">—</span></span></button><span class="reset-plea-bursts" id="reset-plea-bursts" aria-hidden="true"></span></div></section></div></div></div></div>
           <p class="reset-date" id="reset-date">正在读取公开公告…</p>
           <p class="reset-quote" id="reset-quote">数据来自 codex-resets.com</p>
           <div class="reset-actions"><button class="btn btn-primary" id="notify-button" type="button">♧ 开启浏览器提醒</button><a class="btn btn-secondary" id="source-link" href="https://codex-resets.com/" target="_blank" rel="noopener noreferrer">查看原始公告 ↗</a></div>

@@ -44,8 +44,8 @@ function updatePleaMode(resetAt) {
   const timestamp = Date.parse(resetAt || "");
   const thanks = Number.isFinite(timestamp) && timestamp <= Date.now() && timestamp + 86_400_000 > Date.now();
   plea.dataset.mode = thanks ? "thanks" : "beg";
-  label.textContent = thanks ? "感谢重置" : "求重置";
-  const accessibleLabel = thanks ? "感谢这次重置" : "求一次重置";
+  label.textContent = "快重置";
+  const accessibleLabel = thanks ? "感谢这次重置" : "快重置";
   button.setAttribute("aria-label", accessibleLabel);
   button.title = accessibleLabel;
 }
@@ -110,7 +110,7 @@ async function loadPleaCount() {
 function addPleaBurst() {
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
   const bursts = $("reset-plea-bursts");
-  const choices = ["+1", "🙏", "求重置", "🔄", "avatar", "avatar"];
+  const choices = ["+1", "🙏", "快重置", "🔄", "avatar", "avatar"];
   const choice = choices[Math.floor(Math.random() * choices.length)];
   const burst = document.createElement("span");
   burst.className = "reset-plea-burst";
@@ -137,11 +137,16 @@ function addPleaBurst() {
 
 function pleadForReset() {
   const button = $("reset-plea-button");
+  const scene = $("workbench-scene");
   if (navigator.vibrate) navigator.vibrate(14);
   button.classList.remove("is-pleading");
   void button.offsetHeight;
   button.classList.add("is-pleading");
   window.setTimeout(() => button.classList.remove("is-pleading"), 280);
+  scene.classList.remove("is-pinched");
+  void scene.offsetHeight;
+  scene.classList.add("is-pinched");
+  window.setTimeout(() => scene.classList.remove("is-pinched"), 650);
   addPleaBurst();
   if (pleaState.count !== null) {
     pleaState.localCount += 1;
