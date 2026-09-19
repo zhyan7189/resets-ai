@@ -3,8 +3,8 @@ const articles=[
 {category:"变现指南",title:"做 AI 生意，先找到可衡量的客户问题",summary:"从使用量、订阅、结果付费等方式切入，建立可验证的 AI 收费模式。",source:"Stripe",date:"2025-12-20",url:"https://stripe.com/resources/more/ai-monetization-strategies"},
 {category:"实操教程",title:"用 Workers AI 做出第一个可运行应用",summary:"Cloudflare 官方入门文档：从模型调用到部署，适合验证小型 AI 产品想法。",source:"Cloudflare",date:"2026-04-21",url:"https://developers.cloudflare.com/workers-ai/get-started/"},
 {category:"产品实践",title:"把 AI 应用跑在边缘平台上",summary:"官方教程介绍应用逻辑、模型推理与网关如何组成可交付的 AI 服务。",source:"Cloudflare",date:"2026-04-24",url:"https://developers.cloudflare.com/use-cases/ai/build-and-run/"},
-{category:"商业趋势",title:"AI Agent 参与交易，商家该准备什么",summary:"Stripe 从商品数据与交易流程出发，讨论 Agent 商业模式的实际准备工作。",source:"Stripe",date:"2026-04-22",url:"https://stripe.com/resources/more/agentic-commerce"},
-{category:"增长运营",title:"订阅产品从定价到留存的基本框架",summary:"识别目标用户、设计套餐、营销与留存，适合把 AI 工具做成持续服务。",source:"Stripe",date:"2026-06-12",url:"https://stripe.com/resources/more/how-to-sell-a-subcription-service-a-guide-for-businesses"}
+{category:"选题灵感",title:"2026 年 AI 生意方向：从服务到数字产品",summary:"Shopify 汇总 AI 相关生意类型，可用来寻找细分需求，再独立验证市场与投入。",source:"Shopify",date:"2026-08-28",url:"https://www.shopify.com/blog/ai-business-ideas"},
+{category:"实操教程",title:"用 AI 自动化交付重复性业务流程",summary:"Zapier 介绍无需专门技术团队时如何搭建 AI 工作流，可作为服务型产品的实践参考。",source:"Zapier",date:"2026-04-01",url:"https://zapier.com/blog/ai-for-business-automation/"}
 ];
 function el(tag,className,text){const node=document.createElement(tag);if(className)node.className=className;if(text!==undefined)node.textContent=text;return node}
 function safeLink(value){try{const url=new URL(value);return url.protocol==="https:"?url.href:null}catch{return null}}
