@@ -1,0 +1,1 @@
+{"name":"resets-ai","private":true,"version":"1.0.0","type":"module","scripts":{"test":"node --test","check":"node --check public/app.js && node --check public/model.js && node --check functions/api/resets.js"}}
