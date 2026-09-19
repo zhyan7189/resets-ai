@@ -57,3 +57,19 @@ export function historyCalendar(events, now = new Date()) {
   }
   return weeks;
 }
+
+export function tooltipDetails(day, events = []) {
+  const date = new Date(day + "T00:00:00Z");
+  const dateLabel = `${date.getUTCFullYear()}年${date.getUTCMonth() + 1}月${date.getUTCDate()}日`;
+  if (!events.length) {
+    return { dateLabel, items: [{ kind: "empty", label: "", text: "没有重置。推文也很安静。" }] };
+  }
+  return {
+    dateLabel,
+    items: events.map((event) => ({
+      kind: event.kind,
+      label: event.kind === "banked" ? "备用重置额度" : "常规重置",
+      text: event.display_text || event.text || "已发布重置公告。",
+    })),
+  };
+}
