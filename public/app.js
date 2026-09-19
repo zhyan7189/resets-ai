@@ -1,4 +1,4 @@
-import { historyCalendar, normalizeEvents, relativeLabel } from "./model.js";
+import { historyCalendar, normalizeEvents, relativeLabel, tooltipDetails } from "./model.js";
 
 const articles = [
   { category:"tutorial", label:"实操教程 · Stripe", title:"AI 产品怎样定价，才不会越用越亏？", summary:"比较订阅、按量和混合收费，先对齐用户价值与模型成本。", source:"Stripe · 2026-04-19", url:"https://stripe.com/resources/more/ai-pricing-models", style:"" },
@@ -9,6 +9,7 @@ const articles = [
 
 const $ = (id) => document.getElementById(id);
 let reminderEnabled = false;
+let activeTooltip = null;
 
 function httpsUrl(value) {
   try {
@@ -34,8 +35,73 @@ function renderLatest(event) {
   $("source-link").href = httpsUrl(event.tweet_url) || "https://codex-resets.com/";
 }
 
+function hideCellTooltip() {
+  activeTooltip?.remove();
+  activeTooltip = null;
+}
+
+function positionCellTooltip(cell, tooltip) {
+  const rect = cell.getBoundingClientRect();
+  const margin = 14;
+  const gap = 13;
+  tooltip.style.left = `${rect.left + rect.width / 2}px`;
+  tooltip.style.top = "0px";
+  const box = tooltip.getBoundingClientRect();
+  const center = Math.min(
+    Math.max(rect.left + rect.width / 2, box.width / 2 + margin),
+    window.innerWidth - box.width / 2 - margin,
+  );
+  let top = rect.top - box.height - gap;
+  const below = top < margin;
+  if (below) top = rect.bottom + gap;
+  if (top + box.height > window.innerHeight - margin) {
+    top = Math.max(margin, window.innerHeight - box.height - margin);
+  }
+  tooltip.classList.toggle("below", below);
+  tooltip.style.left = `${center}px`;
+  tooltip.style.top = `${top}px`;
+}
+
+function showCellTooltip(cell, day, eventsByDay) {
+  hideCellTooltip();
+  const details = tooltipDetails(day.date, eventsByDay.get(day.date) || []);
+  const tooltip = document.createElement("div");
+  tooltip.className = "cell-tooltip";
+  tooltip.setAttribute("role", "tooltip");
+  const date = document.createElement("div");
+  date.className = "cell-tooltip-date";
+  const utc = document.createElement("span");
+  utc.textContent = "（UTC）";
+  date.append(document.createTextNode(details.dateLabel + " "), utc);
+  tooltip.append(date);
+  for (const item of details.items) {
+    const block = document.createElement("div");
+    block.className = "cell-tooltip-item";
+    if (item.label) {
+      const label = document.createElement("div");
+      label.className = "cell-tooltip-kind";
+      label.textContent = item.label;
+      block.append(label);
+    }
+    const copy = document.createElement("div");
+    copy.className = "cell-tooltip-copy";
+    copy.textContent = item.text;
+    block.append(copy);
+    tooltip.append(block);
+  }
+  document.body.append(tooltip);
+  activeTooltip = tooltip;
+  positionCellTooltip(cell, tooltip);
+}
+
 function renderHistory(events) {
   const weeks = historyCalendar(events);
+  const eventsByDay = new Map();
+  for (const event of events) {
+    const dayEvents = eventsByDay.get(event.day) || [];
+    dayEvents.push(event);
+    eventsByDay.set(event.day, dayEvents);
+  }
   const months = $("months");
   const cells = $("heat-cells");
   months.replaceChildren();
@@ -55,13 +121,17 @@ function renderHistory(events) {
       cell.className = "heat-cell" + (day.future ? " future" : day.type === "empty" ? "" : " " + day.type + " event");
       const kind = day.type === "banked" ? "备用重置" : day.type === "regular" ? "常规重置" : day.type === "mixed" ? "常规及备用重置" : "未重置";
       cell.title = day.date + " · " + kind;
-      if (day.type !== "empty" && !day.future) {
+      if (!day.future) {
         cell.tabIndex = 0;
         cell.setAttribute("role", "img");
         cell.setAttribute("aria-label", cell.title);
       } else {
-        cell.setAttribute("aria-hidden", "true");
+        cell.setAttribute("aria-label", cell.title);
       }
+      cell.addEventListener("pointerenter", () => showCellTooltip(cell, day, eventsByDay));
+      cell.addEventListener("pointerleave", hideCellTooltip);
+      cell.addEventListener("focus", () => showCellTooltip(cell, day, eventsByDay));
+      cell.addEventListener("blur", hideCellTooltip);
       cells.append(cell);
     }
   }
@@ -147,3 +217,5 @@ $("notify-button").addEventListener("click", enableReminder);
 renderArticles();
 loadData();
 window.setInterval(loadData, 15 * 60 * 1000);
+window.addEventListener("scroll", hideCellTooltip, { passive: true });
+window.addEventListener("resize", hideCellTooltip);
