@@ -1,4 +1,4 @@
-import { historyCalendar, normalizeEvents, relativeLabel, tooltipDetails } from "./model.js";
+import { historyCalendar, normalizeEvents, readableEventText, relativeLabel, tooltipDetails } from "./model.js";
 
 const articles = [
   { category:"tutorial", label:"实操教程 · Stripe", title:"AI 产品怎样定价，才不会越用越亏？", summary:"比较订阅、按量和混合收费，先对齐用户价值与模型成本。", source:"Stripe · 2026-04-19", url:"https://stripe.com/resources/more/ai-pricing-models", style:"" },
@@ -31,7 +31,7 @@ function renderLatest(event) {
   $("reset-relative").textContent = relativeLabel(event.announced_at);
   $("reset-type").textContent = event.kind === "banked" ? "● 备用重置" : "● 常规重置";
   $("reset-date").textContent = formatUtc(event.announced_at);
-  $("reset-quote").textContent = "“" + (event.display_text || event.text || "请查看原始公告。") + "”";
+  $("reset-quote").textContent = "“" + readableEventText(event) + "”";
   $("source-link").href = httpsUrl(event.tweet_url) || "https://codex-resets.com/";
 }
 
@@ -177,7 +177,7 @@ async function loadData() {
     renderLatest(latestEvent);
     renderHistory(events);
     if (reminderEnabled && previousId && previousId !== String(latestEvent.tweet_id)) {
-      new Notification("Codex 有新的重置公告", { body:latestEvent.display_text || "点击页面查看公告。" });
+      new Notification("Codex 有新的重置公告", { body:readableEventText(latestEvent) });
     }
     localStorage.setItem("last-reset-id", String(latestEvent.tweet_id));
     $("status-message").textContent = "公开公告已更新 · 数据来源：codex-resets.com";
