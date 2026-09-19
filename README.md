@@ -8,7 +8,7 @@
 npx wrangler pages dev public --ip 127.0.0.1 --port 8788
 ```
 
-访问 http://127.0.0.1:8788/ 。`/api/resets` 是 Cloudflare Pages Function，向 [codex-resets.com](https://codex-resets.com/) 读取公开重置数据；原站不可用时页面会显示错误状态。AI 资料卡片是人工整理的原文导读，并非自动采集或收益承诺。
+访问 http://127.0.0.1:8788/ 。`/api/resets` 是 Cloudflare Pages Function，向 [codex-resets.com](https://codex-resets.com/) 读取公开重置数据；原站不可用时页面会显示错误状态。AI 资料卡片支持站内阅读，文章点击通过可选的 D1 统计，长卡片每小时展示点击量最高的文章。AI 资料并非收益承诺。
 
 `npm run check` 检查 JavaScript 语法，`npm test` 验证数据转换与接口错误处理。Cloudflare Pages 免费方案的配置步骤见 [DEPLOY.md](DEPLOY.md)。
 
