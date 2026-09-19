@@ -3,11 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Resets AI · Codex 重置动态与 AI 机会情报</title>
-    <meta name="description" content="追踪 Codex 公开重置公告与历史，发现有原文来源的 AI 商业化资讯和教程。" />
+    <title>Resets AI · 冷色方案设计预览</title>
     <style>
-      @font-face { font-family: Baloo; src: url("/fonts/Baloo2-ExtraBold.woff2"); font-weight: 800; font-display:swap; }
-      @font-face { font-family: GenSen; src: url("/fonts/GenSenRounded-Heavy-UI.woff2"); font-weight: 800; font-display:swap; }
+      @font-face { font-family: Baloo; src: url("../public/fonts/Baloo2-ExtraBold.woff2"); font-weight: 800; }
+      @font-face { font-family: GenSen; src: url("../public/fonts/GenSenRounded-Heavy-UI.woff2"); font-weight: 800; }
       :root { --paper:#fff4dd; --ink:#26201a; --muted:#6a6052; --card:#fffdf7; --sun:#ffd84d; --orange:#ff5c2b; --rose:#ffb9cc; --sky:#a5dcff; --mint:#c8e9c2; }
       * { box-sizing:border-box; }
       html { scroll-behavior:smooth; }
@@ -112,18 +111,10 @@
       .heat-cell { width:18px; height:18px; border-radius:5px; background:#f6ebd4; }
       .heat-cell.regular { border:2px solid #25262c; background:#ff5c2b; box-shadow:1px 2px 0 #25262c; }
       .heat-cell.banked { border:2px solid #25262c; background:#ffb88f; box-shadow:1px 2px 0 #25262c; }
-      .heat-cell.mixed { border:2px solid #25262c; background:linear-gradient(135deg,#ff5c2b 50%,#ffb88f 50%); box-shadow:1px 2px 0 #25262c; }
       .heat-cell.future { visibility:hidden; }
       .history-note { margin:12px 0 0; text-align:right; color:#707486; font-size:11px; }
-      .reset-actions button { cursor:pointer; }
-      .heat-cell.event { cursor:help; }
-      .tab { cursor:pointer; }
-      .tab[aria-pressed="true"] { background:var(--ink); color:#fff; }
-      .article { color:inherit; text-decoration:none; }
-      .article:hover,.feature:hover { transform:translateY(-2px); }
-      .status-message { margin:9px 0 0; color:var(--muted); font-size:11px; min-height:17px; }
       @media(max-width:1230px) { .rail { display:none; } }
-      @media(max-width:700px) { .shell { width:min(100% - 28px,808px); padding-top:18px; } .brand { font-size:30px; } .brand-sub,.mast .nav-pill:nth-last-child(2),.signal { display:none; } .intro { margin:22px 0 15px; } .reset-card { padding:23px 20px; } .reset-number { font-size:58px; } .reset-main { align-items:center; } .heat-scroll { overflow-x:auto; } .history-row { grid-template-columns:78px 1fr 18px; gap:9px; padding:11px; } .feature { grid-template-columns:1fr; } .feature-art { min-height:105px; } .article-grid { grid-template-columns:1fr; } }
+      @media(max-width:700px) { .shell { width:min(100% - 28px,808px); padding-top:18px; } .brand { font-size:30px; } .brand-sub,.mast .nav-pill:nth-last-child(2),.signal { display:none; } .intro { margin:22px 0 15px; } .reset-card { padding:23px 20px; } .reset-number { font-size:58px; } .reset-main { align-items:center; } .history-row { grid-template-columns:78px 1fr 18px; gap:9px; padding:11px; } .feature { grid-template-columns:1fr; } .feature-art { min-height:105px; } .article-grid { grid-template-columns:1fr; } }
     </style>
   </head>
   <body>
@@ -137,7 +128,7 @@
     </aside>
     <div class="shell">
       <header class="mast">
-        <img class="avatar" src="/thsottiaux-avatar.jpg" alt="" />
+        <img class="avatar" src="../public/thsottiaux-avatar.jpg" alt="" />
         <div><div class="brand">Resets AI</div><div class="brand-sub">CODEX 重置动态 · AI 机会情报</div></div>
         <div class="mast-spacer"></div>
         <a class="nav-pill" href="#history">重置历史</a>
@@ -147,26 +138,47 @@
         <div class="intro"><p class="intro-copy"><strong>关注 Codex 重置公告，</strong>也发现值得实践的 AI 机会。</p><span class="signal"><i></i>公开公告追踪中</span></div>
         <section class="reset-card" aria-label="最新重置公告">
           <p class="eyebrow">最近一次 CODEX 额度重置</p>
-          <div class="reset-main"><span class="reset-number" id="reset-relative">加载中</span><span class="reset-type" id="reset-type">● 等待数据</span></div>
-          <p class="reset-date" id="reset-date">正在读取公开公告…</p>
-          <p class="reset-quote" id="reset-quote">数据来自 codex-resets.com</p>
-          <div class="reset-actions"><button class="btn btn-primary" id="notify-button" type="button">♧ 开启浏览器提醒</button><a class="btn btn-secondary" id="source-link" href="https://codex-resets.com/" target="_blank" rel="noopener noreferrer">查看原始公告 ↗</a></div>
-          <p class="status-message" id="status-message" role="status"></p>
+          <div class="reset-main"><span class="reset-number">7天前</span><span class="reset-type">● 常规重置</span></div>
+          <p class="reset-date">2026 年 9 月 12 日 · 08:09 UTC</p>
+          <p class="reset-quote">“重置已全部传播。好梦。”</p>
+          <div class="reset-actions"><a class="btn btn-primary" href="#">♧ 开启浏览器提醒</a><a class="btn btn-secondary" href="#">查看原始公告 ↗</a></div>
         </section>
         <section class="section" id="history">
           <div class="section-head"><div><h2>Codex 重置历史</h2><p>沿用原站周格日历，按日期展示重置分布</p></div><div class="history-legend"><span><i></i>常规</span><span><i class="banked"></i>备用</span><span><i class="empty"></i>未重置</span></div></div>
-          <div class="history-card"><div class="heatmap"><div class="weekdays"><span></span><span>周一</span><span></span><span>周三</span><span></span><span>周五</span><span></span></div><div class="heat-scroll"><div class="months" id="months"></div><div class="heat-cells" id="heat-cells" aria-label="Codex 重置历史日历"></div></div></div><p class="history-note" id="history-note">正在读取原站历史记录…</p></div>
+          <div class="history-card"><div class="heatmap"><div class="weekdays"><span></span><span>周一</span><span></span><span>周三</span><span></span><span>周五</span><span></span></div><div class="heat-scroll"><div class="months" id="months"></div><div class="heat-cells" id="heat-cells"></div></div></div><p class="history-note">2026 年 3 月 — 9 月 · 数据取自项目当前重置记录</p></div>
         </section>
         <div class="divider"><span>从重置消息，走向下一次机会</span></div>
         <section id="news">
-          <div class="content-intro"><div><h2>AI 赚钱情报</h2><p>筛选值得关注的资讯，整理能照着做的教程。</p></div><span class="demo">人工整理 · 原文可查</span></div>
-          <a class="feature" href="https://www.shopify.com/blog/ai-business-ideas" target="_blank" rel="noopener noreferrer"><div><span class="tag">专题 · Shopify 指南</span><h3>AI 生意从哪里开始：<br />先找到具体需求</h3><p>从服务、数字产品到软件工具，梳理方向后仍需验证市场与成本。</p></div><div class="feature-art">AI ↗</div></a>
-          <div class="tabs" role="group" aria-label="内容分类"><button class="tab" type="button" data-filter="all" aria-pressed="true">全部内容</button><button class="tab" type="button" data-filter="opportunity" aria-pressed="false">机会资讯</button><button class="tab" type="button" data-filter="tutorial" aria-pressed="false">实操教程</button><button class="tab" type="button" data-filter="tools" aria-pressed="false">工具观察</button></div>
-          <div class="article-grid" id="article-grid"></div>
+          <div class="content-intro"><div><h2>AI 赚钱情报</h2><p>筛选值得关注的资讯，整理能照着做的教程。</p></div><span class="demo">以下内容仅为版式演示</span></div>
+          <div class="feature"><div><span class="tag">本周专题 · 教程示例</span><h3>用 AI 做短视频服务：<br />从需求沟通到交付</h3><p>拆解服务流程、交付清单与需要提前确认的成本。</p></div><div class="feature-art">AI ↗</div></div>
+          <div class="tabs"><span class="tab active">全部内容</span><span class="tab">机会资讯</span><span class="tab">实操教程</span><span class="tab">工具观察</span></div>
+          <div class="article-grid">
+            <article class="article"><span class="article-kicker">教程示例 · AI 自动化</span><h3>为小商家制作每周经营报告，可以怎样交付？</h3><p>从客户需求、数据边界到报告模板，整理一个可复用的工作流程。</p><div class="article-foot"><span>编辑整理 · 示例</span><span>阅读全文 ↗</span></div></article>
+            <article class="article rose"><span class="article-kicker">机会观察 · 内容服务</span><h3>AI 辅助内容制作，哪些环节值得做成服务？</h3><p>按交付物而不是工具名称分类，方便判断自己能承担哪一步。</p><div class="article-foot"><span>编辑整理 · 示例</span><span>阅读全文 ↗</span></div></article>
+            <article class="article mint"><span class="article-kicker">教程示例 · 独立开发</span><h3>做一个小型 AI 工具，先验证哪三件事？</h3><p>用低成本原型检查用户需求、交付方式和持续维护成本。</p><div class="article-foot"><span>编辑整理 · 示例</span><span>阅读全文 ↗</span></div></article>
+            <article class="article"><span class="article-kicker">来源追踪 · 信息筛选</span><h3>如何判断一条“AI 赚钱机会”值不值得跟进？</h3><p>核对原始来源、收益条件、时间有效性和实际投入。</p><div class="article-foot"><span>编辑整理 · 示例</span><span>阅读全文 ↗</span></div></article>
+          </div>
         </section>
       </main>
-      <footer class="footer">Resets AI · 重置公告来自 <a href="https://codex-resets.com/" target="_blank" rel="noopener noreferrer">codex-resets.com</a>。本站并非 OpenAI 官方产品；资讯为带来源的导读，不承诺收益。</footer>
+      <footer class="footer">Resets AI · 页面设计预览。重置板块展示公开公告；资讯与教程卡片为版式示例，正式发布时需补充真实来源与日期。</footer>
     </div>
-    <script type="module" src="/app.js"></script>
+    <script>
+      const regularDates = "09-12 09-08 08-31 08-29 08-27 08-25 08-24 08-13 08-11 08-08 08-01 07-29 07-28 07-25 07-21 07-18 07-16 07-14 07-13 07-12 07-11 07-10 07-09 06-29 06-28 06-26 06-18 06-04 05-31 05-23 05-16 04-28 04-20 04-17 04-09 04-07 04-01 03-27 03-11 03-10 03-08 03-04 03-03".split(" ").map(s=>"2026-"+s);
+      const bankedDates = ["2026-09-05","2026-09-03","2026-08-21"];
+      const regular = new Set(regularDates), banked = new Set(bankedDates);
+      const start = Date.UTC(2026,2,1), end = Date.UTC(2026,8,19);
+      const cells = document.getElementById("heat-cells"), months = document.getElementById("months");
+      let previousMonth = -1;
+      for(let week=0, sunday=start; sunday<=end; week++, sunday+=7*86400000){
+        const first = new Date(sunday);
+        if(first.getUTCMonth()!==previousMonth){const label=document.createElement("span");label.textContent=(first.getUTCMonth()+1)+"月";label.style.left=(week*22)+"px";months.append(label);previousMonth=first.getUTCMonth();}
+        for(let day=0;day<7;day++){
+          const ms=sunday+day*86400000, d=new Date(ms).toISOString().slice(0,10), cell=document.createElement("span");
+          cell.className="heat-cell"+(ms>end?" future":regular.has(d)?" regular":banked.has(d)?" banked":"");
+          cell.title=d; cells.append(cell);
+        }
+      }
+    </script>
   </body>
 </html>
+
