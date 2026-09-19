@@ -10,6 +10,7 @@ const articles = [
 const $ = (id) => document.getElementById(id);
 let reminderEnabled = false;
 let activeTooltip = null;
+let pleaState = { cycleId:"", count:null, localCount:0 };
 
 function httpsUrl(value) {
   try {
@@ -33,6 +34,120 @@ function renderLatest(event) {
   $("reset-date").textContent = formatUtc(event.announced_at);
   $("reset-quote").textContent = "“" + readableEventText(event) + "”";
   $("source-link").href = httpsUrl(event.tweet_url) || "https://codex-resets.com/";
+  updatePleaMode(event.announced_at);
+}
+
+function updatePleaMode(resetAt) {
+  const plea = $("reset-plea");
+  const button = $("reset-plea-button");
+  const label = $("reset-plea-label");
+  const timestamp = Date.parse(resetAt || "");
+  const thanks = Number.isFinite(timestamp) && timestamp <= Date.now() && timestamp + 86_400_000 > Date.now();
+  plea.dataset.mode = thanks ? "thanks" : "beg";
+  label.textContent = thanks ? "感谢重置" : "求重置";
+  const accessibleLabel = thanks ? "感谢这次重置" : "求一次重置";
+  button.setAttribute("aria-label", accessibleLabel);
+  button.title = accessibleLabel;
+}
+
+function formatPleaCount(value) {
+  return value === null ? "—" : new Intl.NumberFormat("zh-CN").format(value);
+}
+
+function renderPleaCount(animate = true) {
+  const count = pleaState.count === null ? null : pleaState.count + pleaState.localCount;
+  const node = $("reset-plea-count");
+  const sizer = $("reset-plea-count-sizer");
+  const formatted = formatPleaCount(count);
+  if (animate && node.textContent !== formatted) {
+    node.replaceChildren(...Array.from(formatted).map((character) => {
+      const digit = document.createElement("span");
+      digit.className = "t-digit is-changing";
+      digit.textContent = character;
+      return digit;
+    }));
+  } else {
+    node.textContent = formatted;
+  }
+  sizer.textContent = formatted === "—" ? "1,201,923" : formatted;
+  node.setAttribute("aria-label", count === null ? "互动次数暂不可用" : `${formatted} 次互动`);
+}
+
+function readLocalPleaCount(cycleId) {
+  try {
+    const saved = JSON.parse(localStorage.getItem("resets-ai-plea") || "null");
+    return saved?.cycle_id === cycleId && Number.isSafeInteger(saved.local_count) ? saved.local_count : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveLocalPleaCount() {
+  try {
+    localStorage.setItem("resets-ai-plea", JSON.stringify({ cycle_id:pleaState.cycleId, local_count:pleaState.localCount }));
+  } catch {
+    // 隐私模式下 localStorage 可能不可用，视觉反馈仍然保留。
+  }
+}
+
+async function loadPleaCount() {
+  try {
+    const response = await fetch("/api/reset-requests", { headers:{ accept:"application/json" }, cache:"no-store" });
+    if (!response.ok) throw new Error("求重置互动数据暂不可用");
+    const data = await response.json();
+    if (!data || typeof data.cycle_id !== "string" || !Number.isSafeInteger(data.count) || data.count < 0) throw new Error("求重置互动数据格式异常");
+    if (pleaState.cycleId !== data.cycle_id) {
+      pleaState = { cycleId:data.cycle_id, count:data.count, localCount:readLocalPleaCount(data.cycle_id) };
+    } else {
+      pleaState.count = data.count;
+    }
+    renderPleaCount(false);
+  } catch {
+    renderPleaCount(false);
+  }
+}
+
+function addPleaBurst() {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
+  const bursts = $("reset-plea-bursts");
+  const choices = ["+1", "🙏", "求重置", "🔄", "avatar", "avatar"];
+  const choice = choices[Math.floor(Math.random() * choices.length)];
+  const burst = document.createElement("span");
+  burst.className = "reset-plea-burst";
+  const isAvatar = choice === "avatar";
+  if (isAvatar) {
+    burst.classList.add("reset-plea-burst--avatar");
+    const avatar = document.createElement("img");
+    avatar.className = "reset-plea-burst-avatar";
+    avatar.src = "/thsottiaux-avatar.jpg";
+    avatar.alt = "";
+    avatar.decoding = "async";
+    burst.append(avatar);
+  } else {
+    burst.textContent = choice;
+  }
+  burst.style.setProperty("--burst-x", `${Math.round(Math.random() * 64 - 48)}px`);
+  burst.style.setProperty("--burst-y", `${-58 - Math.round(Math.random() * 42)}px`);
+  burst.style.setProperty("--burst-rotate", `${Math.round(Math.random() * 28 - 14)}deg`);
+  burst.style.setProperty("--burst-size", `${isAvatar ? 38 + Math.round(Math.random() * 4) : 18 + Math.round(Math.random() * 6)}px`);
+  bursts.append(burst);
+  while (bursts.childElementCount > 12) bursts.firstElementChild?.remove();
+  burst.addEventListener("animationend", () => burst.remove(), { once:true });
+}
+
+function pleadForReset() {
+  const button = $("reset-plea-button");
+  if (navigator.vibrate) navigator.vibrate(14);
+  button.classList.remove("is-pleading");
+  void button.offsetHeight;
+  button.classList.add("is-pleading");
+  window.setTimeout(() => button.classList.remove("is-pleading"), 280);
+  addPleaBurst();
+  if (pleaState.count !== null) {
+    pleaState.localCount += 1;
+    renderPleaCount(true);
+    saveLocalPleaCount();
+  }
 }
 
 function hideCellTooltip() {
@@ -176,6 +291,7 @@ async function loadData() {
     const latestEvent = events[0];
     renderLatest(latestEvent);
     renderHistory(events);
+    loadPleaCount();
     if (reminderEnabled && previousId && previousId !== String(latestEvent.tweet_id)) {
       new Notification("Codex 有新的重置公告", { body:readableEventText(latestEvent) });
     }
@@ -214,8 +330,10 @@ document.querySelectorAll(".tab").forEach((button) => {
   });
 });
 $("notify-button").addEventListener("click", enableReminder);
+$("reset-plea-button").addEventListener("click", pleadForReset);
 renderArticles();
 loadData();
 window.setInterval(loadData, 15 * 60 * 1000);
+window.setInterval(loadPleaCount, 15 * 1000);
 window.addEventListener("scroll", hideCellTooltip, { passive: true });
 window.addEventListener("resize", hideCellTooltip);
