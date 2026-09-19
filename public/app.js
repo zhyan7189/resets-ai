@@ -30,7 +30,6 @@ function formatUtc(value) {
 
 function renderLatest(event) {
   $("reset-relative").textContent = relativeLabel(event.announced_at);
-  $("reset-type").textContent = event.kind === "banked" ? "● 备用重置" : "● 常规重置";
   $("reset-date").textContent = formatUtc(event.announced_at);
   $("reset-quote").textContent = "“" + readableEventText(event) + "”";
   $("source-link").href = httpsUrl(event.tweet_url) || "https://codex-resets.com/";
