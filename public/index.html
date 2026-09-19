@@ -31,7 +31,8 @@
       .eyebrow { margin:0 0 13px; font-size:13px; font-weight:800; letter-spacing:.13em; color:#5c5347; }
       .reset-main { display:flex; align-items:end; justify-content:space-between; gap:18px; }
       .reset-number { display:inline-block; transform:rotate(-1deg); background:var(--sun); border-radius:17px; padding:3px 15px 5px; font:800 83px/1.12 GenSen,Baloo,sans-serif; letter-spacing:-4px; }
-      .reset-type { margin-bottom:8px; border:2px solid var(--ink); border-radius:999px; background:#fff; padding:5px 11px; font-size:12px; font-weight:800; white-space:nowrap; }
+      .reset-side { min-height:216px; flex:1; display:flex; flex-direction:column; align-items:flex-end; justify-content:space-between; padding:29px 8px 6px 0; }
+      .reset-type { border:2px solid var(--ink); border-radius:999px; background:#fff; padding:5px 11px; font-size:12px; font-weight:800; white-space:nowrap; }
       .reset-date { margin:18px 0 7px; font:600 13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
       .reset-quote { margin:0; color:#5d544a; font-size:15px; }
       .reset-actions { display:flex; gap:10px; align-items:center; margin-top:23px; }
@@ -131,8 +132,26 @@
       .article { color:inherit; text-decoration:none; }
       .article:hover,.feature:hover { transform:translateY(-2px); }
       .status-message { margin:9px 0 0; color:var(--muted); font-size:11px; min-height:17px; }
+      .reset-plea { flex:none; align-items:center; margin:0; display:flex; position:relative; }
+      .reset-plea-count-slot { flex-shrink:0; display:inline-grid; }
+      .reset-plea-count-sizer { visibility:hidden; }
+      .reset-plea-count { min-width:3ch; color:inherit; opacity:.78; font-family:Baloo,GenSen,sans-serif; font-variant-numeric:tabular-nums; letter-spacing:-.01em; flex-shrink:0; grid-area:1 / 1; justify-content:flex-end; font-size:13px; font-weight:800; line-height:1; }
+      .reset-plea-action { flex:none; display:flex; position:relative; }
+      .reset-plea-button { border:2px solid var(--ink); background:var(--orange); min-height:34px; box-shadow:2px 2px 0 var(--ink); color:#fff; cursor:pointer; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent; border-radius:10px; justify-content:center; align-items:center; gap:5px; padding:6px 9px; font-family:GenSen,Baloo,sans-serif; font-size:13px; font-weight:800; line-height:1; transition:transform 80ms,box-shadow 80ms,background .15s; display:inline-flex; }
+      .reset-plea-button:hover { filter:brightness(.96); }
+      .reset-plea[data-mode="thanks"] .reset-plea-button { background:var(--sun); color:var(--ink); }
+      .reset-plea-button:active,.reset-plea-button.is-pleading { box-shadow:1px 1px 0 var(--ink); transform:translate(2px,2px) rotate(-1deg); }
+      .reset-plea-button-emoji { transform-origin:50% 90%; font-size:16px; display:inline-block; }
+      .reset-plea-button.is-pleading .reset-plea-button-emoji { animation:.26s cubic-bezier(.34,1.56,.64,1) reset-plea-hands; }
+      @keyframes reset-plea-hands { 0% { transform:scale(.85) rotate(-8deg); } 55% { transform:scale(1.22) rotate(6deg); } to { transform:scale(1) rotate(0); } }
+      .reset-plea-bursts { pointer-events:none; position:absolute; inset:0; overflow:visible; }
+      .reset-plea-burst { z-index:2; font-family:GenSen,Baloo,sans-serif; font-size:var(--burst-size,18px); white-space:nowrap; will-change:transform,opacity; font-weight:800; line-height:1; animation:.85s cubic-bezier(.22,1,.36,1) forwards reset-plea-burst; position:absolute; top:50%; left:50%; }
+      .reset-plea-burst:not(.reset-plea-burst--avatar) { border:2px solid var(--ink); background:var(--sun); min-width:30px; min-height:28px; box-shadow:2px 2px 0 var(--ink); color:var(--ink); border-radius:8px; place-items:center; padding:3px 7px 4px; display:grid; }
+      .reset-plea-burst--avatar { width:var(--burst-size,32px); height:var(--burst-size,32px); border:2px solid var(--ink); background:var(--sun); box-shadow:2px 2px 0 var(--ink); border-radius:50%; padding:2px; display:grid; overflow:hidden; }
+      .reset-plea-burst-avatar { object-fit:cover; border-radius:50%; width:100%; height:100%; }
+      @keyframes reset-plea-burst { 0% { opacity:1; transform:translate(-50%,-50%) rotate(var(--burst-rotate,0deg)) scale(.8); } 65% { opacity:1; } to { opacity:0; transform:translate(calc(-50% + var(--burst-x,0px)),calc(-50% + var(--burst-y,-70px))) rotate(var(--burst-rotate,0deg)) scale(1.08); } }
       @media(max-width:1230px) { .rail { display:none; } }
-      @media(max-width:700px) { .shell { width:min(100% - 28px,808px); padding-top:18px; } .brand { font-size:30px; } .brand-sub,.mast .nav-pill:nth-last-child(2),.signal { display:none; } .intro { margin:22px 0 15px; } .reset-card { padding:23px 20px; } .reset-number { font-size:58px; } .reset-main { align-items:center; } .heat-scroll { overflow-x:auto; } .history-row { grid-template-columns:78px 1fr 18px; gap:9px; padding:11px; } .feature { grid-template-columns:1fr; } .feature-art { min-height:105px; } .article-grid { grid-template-columns:1fr; } .cell-tooltip { padding:13px 16px 14px; } .cell-tooltip-date { font-size:15px; } .cell-tooltip-copy { font-size:13px; } }
+      @media(max-width:700px) { .shell { width:min(100% - 28px,808px); padding-top:18px; } .brand { font-size:30px; } .brand-sub,.mast .nav-pill:nth-last-child(2),.signal { display:none; } .intro { margin:22px 0 15px; } .reset-card { padding:23px 20px; } .reset-number { font-size:58px; } .reset-main { align-items:center; } .reset-side { min-height:150px; padding-top:10px; } .heat-scroll { overflow-x:auto; } .history-row { grid-template-columns:78px 1fr 18px; gap:9px; padding:11px; } .feature { grid-template-columns:1fr; } .feature-art { min-height:105px; } .article-grid { grid-template-columns:1fr; } .cell-tooltip { padding:13px 16px 14px; } .cell-tooltip-date { font-size:15px; } .cell-tooltip-copy { font-size:13px; } }
     </style>
   </head>
   <body>
@@ -156,7 +175,7 @@
         <div class="intro"><p class="intro-copy"><strong>关注 Codex 重置公告，</strong>也发现值得实践的 AI 机会。</p><span class="signal"><i></i>公开公告追踪中</span></div>
         <section class="reset-card" aria-label="最新重置公告">
           <p class="eyebrow">最近一次 CODEX 额度重置</p>
-          <div class="reset-main"><span class="reset-number" id="reset-relative">加载中</span><span class="reset-type" id="reset-type">● 等待数据</span></div>
+          <div class="reset-main"><span class="reset-number" id="reset-relative">加载中</span><div class="reset-side"><span class="reset-type" id="reset-type">● 等待数据</span><section class="reset-plea" id="reset-plea" data-mode="beg" aria-label="求重置"><div class="reset-plea-action"><button class="reset-plea-button" id="reset-plea-button" type="button" aria-label="求一次重置" title="求一次重置"><span class="reset-plea-button-emoji" aria-hidden="true">🙏</span><span class="reset-plea-button-label" id="reset-plea-label">求重置</span><span class="reset-plea-count-slot"><span class="reset-plea-count reset-plea-count-sizer" id="reset-plea-count-sizer" aria-hidden="true">1,201,923</span><span class="reset-plea-count" id="reset-plea-count" role="status" aria-live="polite" aria-atomic="true" aria-label="互动次数暂不可用">—</span></span></button><span class="reset-plea-bursts" id="reset-plea-bursts" aria-hidden="true"></span></div></section></div></div>
           <p class="reset-date" id="reset-date">正在读取公开公告…</p>
           <p class="reset-quote" id="reset-quote">数据来自 codex-resets.com</p>
           <div class="reset-actions"><button class="btn btn-primary" id="notify-button" type="button">♧ 开启浏览器提醒</button><a class="btn btn-secondary" id="source-link" href="https://codex-resets.com/" target="_blank" rel="noopener noreferrer">查看原始公告 ↗</a></div>
