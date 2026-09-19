@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyReset, historyCalendar, normalizeEvents, relativeLabel, tooltipDetails } from "../public/model.js";
+import { classifyReset, historyCalendar, normalizeEvents, readableEventText, relativeLabel, tooltipDetails } from "../public/model.js";
 
 test("按原站字段排序、识别常规与备用重置", () => {
   const events = normalizeEvents({ events: [
@@ -30,4 +30,7 @@ test("每个日期都能生成悬浮信息，空白日也有说明", () => {
   }]).items[0], {
     kind:"banked", label:"备用重置额度", text:"备用重置额将在约 3 小时后发放。",
   });
+  assert.equal(readableEventText({ display_text:"重置已经传播。 https://t.co/example" }), "重置已经传播。");
+  assert.equal(readableEventText({ tweet_id:"2098685367058612394", text:"Reset all propagated. Sweet dreams." }), "重置已全部传播。好梦。");
+  assert.match(readableEventText({ tweet_id:"new-event", text:"A brand new English announcement" }), /原站发布了新的重置公告/);
 });
