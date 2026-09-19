@@ -8,9 +8,31 @@ const articles = [
 ];
 
 const $ = (id) => document.getElementById(id);
-let reminderEnabled = false;
+function readReminderPreference() {
+  try {
+    return localStorage.getItem("resets-ai-reminders") === "enabled";
+  } catch {
+    return false;
+  }
+}
+
+let reminderEnabled = readReminderPreference();
 let activeTooltip = null;
 let pleaState = { cycleId:"", count:null, localCount:0 };
+
+function writeReminderPreference(enabled) {
+  try {
+    localStorage.setItem("resets-ai-reminders", enabled ? "enabled" : "disabled");
+  } catch {
+    // The in-memory toggle still works when storage is unavailable.
+  }
+}
+
+function syncReminderButton() {
+  const button = $("notify-button");
+  button.textContent = reminderEnabled ? "✓ 浏览器提醒已开启" : "♧ 开启浏览器提醒";
+  button.setAttribute("aria-pressed", String(reminderEnabled));
+}
 
 function httpsUrl(value) {
   try {
@@ -225,13 +247,14 @@ function renderHistory(events) {
   const cells = $("heat-cells");
   months.replaceChildren();
   cells.replaceChildren();
+  cells.style.setProperty("--history-weeks", weeks.length);
   let previousMonth = -1;
   for (let week = 0; week < weeks.length; week++) {
     const sunday = new Date(weeks[week][0].date + "T00:00:00Z");
     if (sunday.getUTCMonth() !== previousMonth) {
       const label = document.createElement("span");
       label.textContent = (sunday.getUTCMonth() + 1) + "月";
-      label.style.left = (week * 22) + "px";
+      label.style.left = ((week / weeks.length) * 100) + "%";
       months.append(label);
       previousMonth = sunday.getUTCMonth();
     }
@@ -296,7 +319,7 @@ async function loadData() {
     renderLatest(latestEvent);
     renderHistory(events);
     loadPleaCount();
-    if (reminderEnabled && previousId && previousId !== String(latestEvent.tweet_id)) {
+    if (reminderEnabled && typeof Notification !== "undefined" && Notification.permission === "granted" && previousId && previousId !== String(latestEvent.tweet_id)) {
       new Notification("Codex 有新的重置公告", { body:readableEventText(latestEvent) });
     }
     localStorage.setItem("last-reset-id", String(latestEvent.tweet_id));
@@ -311,20 +334,39 @@ async function loadData() {
   }
 }
 
-function enableReminder() {
+async function toggleReminder() {
+  if (reminderEnabled) {
+    reminderEnabled = false;
+    writeReminderPreference(false);
+    syncReminderButton();
+    $("status-message").textContent = "浏览器提醒已关闭。";
+    return;
+  }
   if (!("Notification" in window)) {
     $("status-message").textContent = "当前浏览器不支持通知。";
     return;
   }
-  Notification.requestPermission().then((permission) => {
+  if (Notification.permission === "denied") {
+    $("status-message").textContent = "浏览器已拒绝通知，请在站点设置中重新允许。";
+    return;
+  }
+  const button = $("notify-button");
+  button.disabled = true;
+  try {
+    const permission = Notification.permission === "granted"
+      ? "granted"
+      : await Notification.requestPermission();
     if (permission !== "granted") {
       $("status-message").textContent = "未获得通知权限。";
       return;
     }
     reminderEnabled = true;
-    $("notify-button").textContent = "✓ 页面打开时提醒已开启";
-    $("status-message").textContent = "页面保持打开时，每 15 分钟检查新公告。";
-  });
+    writeReminderPreference(true);
+    syncReminderButton();
+    $("status-message").textContent = "浏览器提醒已开启。";
+  } finally {
+    button.disabled = false;
+  }
 }
 
 document.querySelectorAll(".tab").forEach((button) => {
@@ -333,7 +375,8 @@ document.querySelectorAll(".tab").forEach((button) => {
     renderArticles(button.dataset.filter);
   });
 });
-$("notify-button").addEventListener("click", enableReminder);
+syncReminderButton();
+$("notify-button").addEventListener("click", toggleReminder);
 $("reset-plea-button").addEventListener("click", pleadForReset);
 renderArticles();
 loadData();
