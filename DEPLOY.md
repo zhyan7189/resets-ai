@@ -3,7 +3,7 @@
 本仓库使用静态文件 + Pages Function；重置公告本身不需要数据库。文章管理与跨访客点击统计使用 Cloudflare D1。
 
 1. 在 Cloudflare 仪表盘中创建 **Workers & Pages → Pages → Connect to Git** 项目，连接本仓库。
-2. 生产分支选择 `main`。构建命令留空，输出目录填写 `public`。
+2. 生产分支选择 `main`。无框架预设时，构建命令填写 `exit 0`，构建输出目录填写 `public`。这是 Cloudflare 对无构建步骤且使用 Pages Functions 的静态站点的[官方建议](https://developers.cloudflare.com/pages/framework-guides/deploy-anything/)。
 3. 部署后检查首页及 `/api/resets`。Pages Function 会代理公开的 `https://codex-resets.com/api/resets`，并缓存 15 分钟。
 4. 正式接广告前，替换页面两侧的四张示意卡。广告文案与链接需由站长核准。
 
