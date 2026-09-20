@@ -17,7 +17,10 @@ let originalBody = "";
 let extractionState = "manual";
 let extractionNote = "";
 let adRows = [];
-let mediaEntries = [];
+let mediaArchives = [];
+let mediaPage = 1;
+let mediaDetailPage = 1;
+let selectedMediaArchive = null;
 let operationsPage = 1;
 let operationsTotal = 0;
 let deleting = null;
@@ -27,22 +30,21 @@ document.body.append($("editor"));
 function canCloseDialog(dialog) {
   if (dialog.id === "approve-dialog") return !$("approve-confirm").disabled;
   if (dialog.id === "delete-dialog") return !$("delete-confirm").disabled;
+  if (dialog.id === "editor") return form.dataset.saving !== "true";
+  if (dialog.id === "ad-editor") return $("ad-form").dataset.saving !== "true";
   return true;
 }
 
 for (const dialog of document.querySelectorAll("dialog")) {
   const content = dialog.querySelector(".dialog-content");
   if (!content) continue;
-  const toolbar = document.createElement("div");
-  toolbar.className = "dialog-toolbar";
   const close = document.createElement("button");
   close.className = "dialog-pin-close";
   close.type = "button";
   close.textContent = "×";
   close.setAttribute("aria-label", "关闭弹窗");
   close.addEventListener("click", () => { if (canCloseDialog(dialog)) dialog.close(); });
-  toolbar.append(close);
-  content.prepend(toolbar);
+  dialog.append(close);
   dialog.addEventListener("click", (event) => { if (event.target === dialog && canCloseDialog(dialog)) dialog.close(); });
   dialog.addEventListener("cancel", (event) => { if (!canCloseDialog(dialog)) event.preventDefault(); });
 }
@@ -333,33 +335,62 @@ function drawRanks(id, items, valueText) {
 
 async function refreshMedia() {
   const data = await api("/api/admin/media");
-  mediaEntries = data.media || [];
+  mediaArchives = data.archives || [];
+  if (selectedMediaArchive) selectedMediaArchive = mediaArchives.find((archive) => archive.id === selectedMediaArchive.id) || null;
   renderMedia();
 }
 
 function renderMedia() {
+  const query = $("media-query").value.trim().toLocaleLowerCase();
+  const archives = mediaArchives.filter((archive) => !query || [archive.archive_code, archive.title, ...archive.items.map((item) => item.url)].join(" ").toLocaleLowerCase().includes(query));
+  const pageSize = Number($("media-page-size").value);
+  const pageCount = Math.max(1, Math.ceil(archives.length / pageSize));
+  mediaPage = Math.min(mediaPage, pageCount);
+  const archiveList = $("media-archive-list"); archiveList.replaceChildren();
+  for (const archive of archives.slice((mediaPage - 1) * pageSize, mediaPage * pageSize)) {
+    const row = document.createElement("tr");
+    for (const value of [archive.archive_code || "—", archive.title || "未命名档案", archive.items.length, archive.items.filter((item) => item.type === "cover").length, archive.items.filter((item) => item.type === "image").length, archive.items.filter((item) => item.type === "video").length, archive.items.filter((item) => item.storage === "R2").length]) {
+      const cell = document.createElement("td"); cell.textContent = value; row.append(cell);
+    }
+    const action = document.createElement("td"); const button = document.createElement("button");
+    button.className = "button secondary"; button.type = "button"; button.textContent = "查看素材";
+    button.addEventListener("click", () => { selectedMediaArchive = archive; mediaDetailPage = 1; $("media-archives").hidden = true; $("media-detail").hidden = false; $("media-type").value = ""; $("media-storage").value = ""; renderMediaDetail(); });
+    action.append(button); row.append(action); archiveList.append(row);
+  }
+  if (!archives.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 8; cell.textContent = "没有匹配的档案。"; cell.className = "empty"; row.append(cell); archiveList.append(row); }
+  $("media-page-info").textContent = `共 ${archives.length} 条档案 · 第 ${mediaPage}/${pageCount} 页`;
+  $("media-prev").disabled = mediaPage <= 1;
+  $("media-next").disabled = mediaPage >= pageCount;
+  if (selectedMediaArchive) renderMediaDetail();
+  else { $("media-archives").hidden = false; $("media-detail").hidden = true; }
+}
+
+function renderMediaDetail() {
+  if (!selectedMediaArchive) return;
+  $("media-detail-title").textContent = `${selectedMediaArchive.archive_code || "—"} · ${selectedMediaArchive.title || "未命名档案"}`;
   const list = $("media-list"); list.replaceChildren();
   const type = $("media-type").value;
   const storage = $("media-storage").value;
-  const query = $("media-query").value.trim().toLocaleLowerCase();
-  const rows = mediaEntries.filter((item) => (!type || item.type === type) && (!storage || item.storage === storage) &&
-    (!query || [item.archive_code, item.article_title, item.url].join(" ").toLocaleLowerCase().includes(query)));
-  for (const item of rows) {
+  const rows = selectedMediaArchive.items.filter((item) => (!type || item.type === type) && (!storage || item.storage === storage));
+  const pageSize = Number($("media-detail-page-size").value);
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  mediaDetailPage = Math.min(mediaDetailPage, pageCount);
+  for (const item of rows.slice((mediaDetailPage - 1) * pageSize, mediaDetailPage * pageSize)) {
     const row = document.createElement("tr");
     const add = (value, className = "") => { const cell = document.createElement("td"); cell.textContent = value; cell.className = className; row.append(cell); return cell; };
     const preview = add("");
     if (item.type === "video") preview.textContent = "▶";
     else { const img = document.createElement("img"); img.src = item.url; img.alt = ""; img.loading = "lazy"; img.className = "media-thumb"; preview.append(img); }
     add(item.type === "cover" ? "封面" : item.type === "video" ? "视频" : "正文图片");
-    add(item.archive_code || "—", "id-cell");
-    add(item.article_title || "未命名档案", "title-cell");
     add(item.storage);
     const address = add("");
     const link = document.createElement("a"); link.href = item.url; link.target = "_blank"; link.rel = "noopener noreferrer"; link.className = "media-link"; link.textContent = item.url;
     address.append(link); list.append(row);
   }
-  if (!rows.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 6; cell.textContent = "没有匹配的素材。"; cell.className = "empty"; row.append(cell); list.append(row); }
-  $("media-count").textContent = `共 ${rows.length} 个素材 · R2 ${rows.filter((item) => item.storage === "R2").length} 个`;
+  if (!rows.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 4; cell.textContent = "这条档案没有匹配的素材。"; cell.className = "empty"; row.append(cell); list.append(row); }
+  $("media-count").textContent = `共 ${rows.length} 个素材 · R2 ${rows.filter((item) => item.storage === "R2").length} 个 · 第 ${mediaDetailPage}/${pageCount} 页`;
+  $("media-detail-prev").disabled = mediaDetailPage <= 1;
+  $("media-detail-next").disabled = mediaDetailPage >= pageCount;
 }
 
 async function refreshOperations() {
@@ -545,6 +576,7 @@ $("new-close").addEventListener("click", () => $("new-dialog").close());
 $("choose-link").addEventListener("click", () => { $("import-panel").hidden = false; $("new-choices").hidden = true; $("import-url").focus(); });
 $("manual").addEventListener("click", () => { $("new-dialog").close(); fill({ format:"article", category:"opportunity", rights:"licensed", status:"draft" }); status("save-status", "已打开空白录入表单。填写后保存并提交审核。"); });
 $("close-editor").addEventListener("click", () => $("editor").close());
+$("editor-cancel").addEventListener("click", () => { if (canCloseDialog($("editor"))) $("editor").close(); });
 
 $("import").addEventListener("click", async () => {
   const url = $("import-url").value.trim();
@@ -582,7 +614,15 @@ $("delete-confirm").addEventListener("click", async () => {
   } catch (error) { status("delete-status", error.message, true); }
   finally { button.disabled = false; }
 });
-for (const id of ["media-query","media-type","media-storage"]) $(id).addEventListener(id === "media-query" ? "input" : "change", renderMedia);
+$("media-query").addEventListener("input", () => { mediaPage = 1; renderMedia(); });
+$("media-page-size").addEventListener("change", () => { mediaPage = 1; renderMedia(); });
+$("media-prev").addEventListener("click", () => { if (mediaPage > 1) { mediaPage--; renderMedia(); } });
+$("media-next").addEventListener("click", () => { mediaPage++; renderMedia(); });
+$("media-back").addEventListener("click", () => { selectedMediaArchive = null; renderMedia(); });
+$("media-detail-page-size").addEventListener("change", () => { mediaDetailPage = 1; renderMediaDetail(); });
+$("media-detail-prev").addEventListener("click", () => { if (mediaDetailPage > 1) { mediaDetailPage--; renderMediaDetail(); } });
+$("media-detail-next").addEventListener("click", () => { mediaDetailPage++; renderMediaDetail(); });
+for (const id of ["media-type","media-storage"]) $(id).addEventListener("change", () => { mediaDetailPage = 1; renderMediaDetail(); });
 let operationsTimer;
 $("operations-query").addEventListener("input", () => { operationsPage = 1; clearTimeout(operationsTimer); operationsTimer = setTimeout(() => refreshOperations().catch((error) => status("operations-status", error.message, true)), 250); });
 $("operations-prev").addEventListener("click", () => { if (operationsPage > 1) { operationsPage--; refreshOperations(); } });
@@ -612,6 +652,7 @@ for (const button of document.querySelectorAll(".ad-spot")) button.addEventListe
   fillAdSlot();
 });
 $("ad-close").addEventListener("click", () => $("ad-editor").close());
+$("ad-cancel").addEventListener("click", () => { if (canCloseDialog($("ad-editor"))) $("ad-editor").close(); });
 $("ad-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const adForm = event.currentTarget;
@@ -619,10 +660,15 @@ $("ad-form").addEventListener("submit", async (event) => {
   ad.slot = Number(ad.slot); ad.active = adForm.elements.namedItem("active").checked;
   for (const name of ["starts_at","ends_at"]) ad[name] = ad[name] ? new Date(ad[name]).toISOString().slice(0,16) : "";
   if (ad.active && !await confirmAction({ badge:"广告启用", title:`确认启用广告位 ${ad.slot}？`, summary:`将向访客展示「${ad.title}」。`, detail:`推广链接：${ad.target_url}`, confirmText:"确认启用" })) return;
-  const button = adForm.querySelector("button[type=submit]"); button.disabled = true;
-  try { await api("/api/admin/ads", { method:"PUT", body:JSON.stringify(ad) }); await refreshAds(); status("ad-status", `广告位 ${ad.slot} 已保存；首页刷新后生效。`); }
-  catch (error) { status("ad-status", error.message, true); }
-  finally { button.disabled = false; }
+  const button = adForm.querySelector("button[type=submit]"); button.disabled = true; adForm.dataset.saving = "true";
+  try {
+    await api("/api/admin/ads", { method:"PUT", body:JSON.stringify(ad) });
+    $("ad-editor").close();
+    status("ads-status", `广告位 ${ad.slot} 已保存；首页刷新后生效。`);
+    await refreshAds();
+  }
+  catch (error) { status($("ad-editor").open ? "ad-status" : "ads-status", error.message, true); }
+  finally { button.disabled = false; delete adForm.dataset.saving; }
 });
 
 form.addEventListener("input", preview);
@@ -636,16 +682,15 @@ form.addEventListener("submit", async (event) => {
   article.original_body = originalBody;
   article.extraction_state = extractionState;
   article.extraction_note = extractionNote;
-  const button = event.submitter; button.disabled = true; status("save-status", "正在保存…");
+  const button = event.submitter; button.disabled = true; form.dataset.saving = "true"; status("save-status", "正在保存…");
   try {
     const result = await api("/api/admin/articles", { method:editingId ? "PUT" : "POST", body:JSON.stringify({ ...article, ...(editingId ? { id:editingId, revision } : {}) }) });
     editingId = result.id; revision = result.revision;
-    status("save-status", `${statusNames[requestedStatus]}已保存。${requestedStatus === "review" ? "请到审核管理预览并审核。" : ""}`);
-    $("current-status").textContent = `当前：${statusNames[requestedStatus]} · 第 ${revision} 版`;
+    $("editor").close();
+    status("import-status", `${statusNames[requestedStatus]}已保存。${requestedStatus === "review" ? "请到审核管理预览并审核。" : ""}`);
     await Promise.all([refreshList(), refreshReview(), refreshOverview(), refreshMedia(), refreshOperations()]);
-    await loadVersions();
-  } catch (error) { status("save-status", error.message, true); }
-  finally { button.disabled = false; }
+  } catch (error) { status($("editor").open ? "save-status" : "import-status", error.message, true); }
+  finally { button.disabled = false; delete form.dataset.saving; }
 });
 
 const sectionLinks = [...document.querySelectorAll('.nav-link[href^="#"]')];

@@ -18,6 +18,7 @@ import { onRequestPost as trackImpression } from "../functions/api/analytics/imp
 import { onRequestGet as versions } from "../functions/api/admin/versions.js";
 import { onRequestPost as uploadImage } from "../functions/api/admin/upload.js";
 import { onRequestGet as getMedia } from "../functions/api/media/[id].js";
+import { onRequestGet as listAdminMedia } from "../functions/api/admin/media.js";
 import { onRequestGet as listAds, onRequestPut as saveAd } from "../functions/api/admin/ads.js";
 import { onRequestGet as publicAds } from "../functions/api/ads.js";
 import { cleanArticle, cleanUrl, stripXProfileImages } from "../lib/articles.js";
@@ -69,6 +70,19 @@ test("后台登录验证不依赖数据库，错误密钥仍被拒绝", async ()
   const accepted = await authenticateAdmin({ request:request("/api/admin/auth", "GET", undefined, true), env });
   assert.equal(accepted.status, 200);
   assert.deepEqual(await accepted.json(), { authenticated:true });
+});
+
+test("媒体库按档案归组，包含没有素材的档案", async () => {
+  const env = environment();
+  await create({ request:request("/api/admin/articles", "POST", sample, true), env });
+  await create({ request:request("/api/admin/articles", "POST", { ...sample, source_url:"https://example.org/with-cover", cover_url:"https://example.org/cover.png" }, true), env });
+  const response = await listAdminMedia({ request:request("/api/admin/media", "GET", undefined, true), env });
+  assert.equal(response.status, 200);
+  const { archives, media } = await response.json();
+  assert.equal(archives.length, 2);
+  assert.deepEqual(archives.map((archive) => archive.items.length).sort(), [0, 1]);
+  assert.equal(media.length, 1);
+  assert.equal(media[0].type, "cover");
 });
 
 test("后台鉴权、草稿隔离、发布、下架和热度筛选", async () => {
