@@ -175,6 +175,26 @@
       .reader-meta { margin:0; color:var(--muted); font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace; }
       .reader-summary { margin:18px 0 0; padding:13px 15px; border-left:5px solid var(--orange); background:#f2edff; color:var(--ink); font-size:14px; line-height:1.65; }
       .reader-cover { display:block; width:100%; max-height:280px; object-fit:cover; margin:18px 0 0; border:2px solid var(--ink); border-radius:12px; }
+      .reader-gate { width:min(510px,calc(100% - 32px)); max-width:none; padding:0; overflow:visible; border:0; background:transparent; color:var(--ink); }
+      .reader-gate::backdrop { background:rgba(25,39,83,.6); backdrop-filter:blur(4px); }
+      .gate-card { position:relative; padding:28px; border:3px solid var(--ink); border-radius:23px; background:var(--card); box-shadow:8px 8px 0 var(--ink); background-image:radial-gradient(#e8e3d7 1px,transparent 1px); background-size:18px 18px; }
+      .gate-close { position:absolute; top:-18px; right:-18px; display:grid; place-items:center; width:39px; height:39px; padding:0; border:2px solid var(--ink); border-radius:50%; background:var(--sun); box-shadow:2px 2px 0 var(--ink); color:var(--ink); font-size:24px; cursor:pointer; }
+      .gate-top { display:grid; grid-template-columns:132px 1fr; align-items:center; gap:20px; }
+      .gate-art { position:relative; display:grid; place-items:center; height:146px; border:2px solid var(--ink); border-radius:19px; background:var(--sky); overflow:hidden; }
+      .gate-art::before,.gate-art::after { content:'✦'; position:absolute; color:var(--orange); font:800 24px Baloo,sans-serif; }
+      .gate-art::before { top:10px; left:14px; transform:rotate(-18deg); }
+      .gate-art::after { right:11px; bottom:9px; font-size:18px; transform:rotate(18deg); }
+      .gate-book { position:relative; display:grid; justify-items:center; align-content:center; width:91px; height:104px; border:3px solid var(--ink); border-radius:12px 20px 15px 12px; background:var(--mint); box-shadow:5px 5px 0 var(--ink); transform:rotate(-8deg); }
+      .gate-book::before { content:''; position:absolute; top:0; right:11px; width:12px; height:24px; border:2px solid var(--ink); border-top:0; border-radius:0 0 6px 6px; background:var(--rose); }
+      .gate-eyes { margin-top:12px; font:800 32px/1 Baloo,sans-serif; letter-spacing:9px; transform:translateX(4px); }
+      .gate-smile { font:800 32px/1 Baloo,sans-serif; transform:translateY(-4px); }
+      .gate-badge { display:inline-block; padding:5px 10px; border:2px solid var(--ink); border-radius:999px; background:var(--sun); font-size:11px; font-weight:800; }
+      .gate-card h2 { margin:11px 0 8px; font:800 clamp(24px,5vw,32px)/1.18 GenSen,sans-serif; }
+      .gate-card p { margin:0; color:var(--muted); font-size:14px; line-height:1.65; }
+      .gate-archive { margin:21px 0 12px; padding:12px 14px; border:2px dashed var(--ink); border-radius:12px; background:#fff4dd; font-size:12px; font-weight:800; line-height:1.45; }
+      .gate-actions { display:flex; flex-wrap:wrap; gap:10px; }
+      .gate-actions .btn { display:inline-flex; justify-content:center; align-items:center; cursor:pointer; }
+      @media(max-width:520px) { .gate-card { padding:23px 18px; } .gate-top { grid-template-columns:96px 1fr; gap:14px; } .gate-art { height:116px; } .gate-book { transform:rotate(-8deg) scale(.75); } .gate-actions .btn { flex:1; } }
       .reader-body { margin-top:21px; }
       .reader-body > * { margin:0; color:var(--muted); font-size:14px; line-height:1.75; }
       .reader-body > * + * { margin-top:13px; }
@@ -227,11 +247,11 @@
     </style>
   </head>
   <body>
-    <aside class="rail left" aria-label="左侧固定广告">
+    <aside class="rail left" aria-label="左侧固定广告" hidden>
       <div class="ad" data-ad-slot="1"><span class="ad-label">广告位 · 01</span><span class="ad-icon">✦</span><strong>你的品牌<br />在这里亮相</strong><small>固定展示 · 推广合作示意</small></div>
       <div class="ad" data-ad-slot="2"><span class="ad-label">广告位 · 02</span><span class="ad-icon">◈</span><strong>AI 工具<br />合作展示</strong><small>固定展示 · 推广合作示意</small></div>
     </aside>
-    <aside class="rail right" aria-label="右侧固定广告">
+    <aside class="rail right" aria-label="右侧固定广告" hidden>
       <div class="ad" data-ad-slot="3"><span class="ad-label">广告位 · 03</span><span class="ad-icon">✳</span><strong>优质产品<br />推广展示</strong><small>固定展示 · 推广合作示意</small></div>
       <div class="ad" data-ad-slot="4"><span class="ad-label">广告位 · 04</span><span class="ad-icon">↗</span><strong>成为本站<br />合作伙伴</strong><small>固定展示 · 推广合作示意</small></div>
     </aside>
@@ -266,7 +286,7 @@
         <div class="divider"><span>从重置消息，走向下一次机会</span></div>
         <section id="news">
           <div class="content-intro"><div><h2>AI 赚钱情报</h2><p>筛选值得关注的资讯，整理能照着做的教程。</p></div><span class="demo">人工整理 · 原文可查</span></div>
-          <p class="reader-access" id="reader-access">访客可阅读最新 1 篇档案。<a href="/register.html">注册后阅读全部档案 ↗</a></p>
+          <p class="reader-access" id="reader-access">全部档案均可浏览；最新 1 篇可完整阅读。<a href="/register.html">注册后解锁全站 ↗</a></p>
           <a class="feature" id="popular-article" href="#news" aria-label="正在读取热度榜首档案" hidden><div><span class="tag" id="popular-label">热度榜首 · 正在读取</span><h3 id="popular-title">正在读取热度最高的档案…</h3><p id="popular-summary">根据档案点击量更新。</p><span class="popular-source" id="popular-source"></span></div><div class="feature-art" id="popular-art">热度 #1</div></a>
           <div class="article-tools"><div class="tabs" role="group" aria-label="内容分类"><button class="tab" type="button" data-filter="all" aria-pressed="true">全部内容</button><button class="tab" type="button" data-filter="opportunity" aria-pressed="false">机会资讯</button><button class="tab" type="button" data-filter="tutorial" aria-pressed="false">实操教程</button><button class="tab" type="button" data-filter="tools" aria-pressed="false">工具观察</button><button class="tab" type="button" data-filter="case" aria-pressed="false">创业案例</button><button class="tab" type="button" data-filter="pitfall" aria-pressed="false">避坑经验</button></div><input class="article-search" id="article-search" type="search" placeholder="搜索文章" aria-label="搜索文章" /></div>
           <div class="article-grid" id="article-grid"></div>
@@ -282,6 +302,14 @@
         <div class="reader-body" id="reader-body"></div>
         <div class="reader-footer"><p class="reader-note" id="reader-note"></p><a class="reader-source" id="reader-source" href="#" target="_blank" rel="noopener noreferrer"></a></div>
       </article>
+    </dialog>
+    <dialog class="reader-gate" id="reader-gate" aria-labelledby="gate-title">
+      <div class="gate-card">
+        <button class="gate-close" id="gate-close" type="button" aria-label="关闭注册提示">×</button>
+        <div class="gate-top"><div class="gate-art" aria-hidden="true"><div class="gate-book"><span class="gate-eyes">••</span><span class="gate-smile">⌣</span></div></div><div><span class="gate-badge">解锁全站档案 ✦</span><h2 id="gate-title">下一篇好内容，等你来解锁</h2><p>游客可完整阅读最新 1 篇。注册免费读者账号后，就能阅读全部已发布档案。</p></div></div>
+        <div class="gate-archive">即将解锁：<span id="gate-archive"></span></div>
+        <div class="gate-actions"><a class="btn btn-primary" id="gate-register" href="/register.html">免费注册 · 继续阅读 ↗</a><button class="btn btn-secondary" id="gate-later" type="button">稍后再看</button></div>
+      </div>
     </dialog>
     <script type="module" src="/app.js"></script>
   </body>

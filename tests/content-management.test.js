@@ -19,7 +19,7 @@ import { onRequestGet as versions } from "../functions/api/admin/versions.js";
 import { onRequestPost as uploadImage } from "../functions/api/admin/upload.js";
 import { onRequestGet as getMedia } from "../functions/api/media/[id].js";
 import { onRequestGet as listAdminMedia } from "../functions/api/admin/media.js";
-import { onRequestGet as listAds, onRequestPut as saveAd } from "../functions/api/admin/ads.js";
+import { onRequestGet as listAds, onRequestPut as saveAd, onRequestPatch as toggleAd } from "../functions/api/admin/ads.js";
 import { onRequestGet as publicAds } from "../functions/api/ads.js";
 import { cleanArticle, cleanUrl, stripXProfileImages } from "../lib/articles.js";
 
@@ -334,6 +334,27 @@ test("广告位须鉴权，启用后才公开，过期后自动隐藏", async ()
   const expired = { ...ad, ends_at:"2020-01-01T00:00" };
   assert.equal((await saveAd({ request:request("/api/admin/ads", "PUT", expired, true), env })).status, 200);
   assert.equal((await (await publicAds({ env })).json()).ads.length, 0);
+});
+
+test("四个广告位独立开关保留原广告内容，全部关闭后公开接口不返回广告位", async () => {
+  const env = environment();
+  const ad = { slot:1, title:"示例品牌", target_url:"https://example.org", active:true };
+  assert.equal((await saveAd({ request:request("/api/admin/ads", "PUT", ad, true), env })).status, 200);
+  assert.equal((await toggleAd({ request:request("/api/admin/ads", "PATCH", { slot:1, active:false }), env })).status, 401);
+  assert.equal((await toggleAd({ request:request("/api/admin/ads", "PATCH", { slot:5, active:false }, true), env })).status, 400);
+  for (let slot = 1; slot <= 4; slot++) {
+    assert.equal((await toggleAd({ request:request("/api/admin/ads", "PATCH", { slot, active:false }, true), env })).status, 200);
+  }
+  const hidden = await (await publicAds({ env })).json();
+  assert.deepEqual(hidden.hidden_slots, [1, 2, 3, 4]);
+  assert.deepEqual(hidden.ads, []);
+  const stored = await (await listAds({ request:request("/api/admin/ads", "GET", undefined, true), env })).json();
+  assert.equal(stored.ads[0].title, "示例品牌");
+  assert.equal(stored.ads[0].active, 0);
+  assert.equal((await toggleAd({ request:request("/api/admin/ads", "PATCH", { slot:1, active:true }, true), env })).status, 200);
+  const restored = await (await publicAds({ env })).json();
+  assert.deepEqual(restored.hidden_slots, [2, 3, 4]);
+  assert.equal(restored.ads[0].title, "示例品牌");
 });
 
 test("旧文章迁移后仍保留公开状态和首个历史版本", () => {

@@ -394,7 +394,8 @@ function renderMediaDetail() {
 }
 
 async function refreshOperations() {
-  const params = new URLSearchParams({ q:$("operations-query").value.trim(), page:String(operationsPage) });
+  const pageSize = Number($("operations-page-size").value) || 10;
+  const params = new URLSearchParams({ q:$("operations-query").value.trim(), status:$("operations-status").value, sort:$("operations-sort").value, page:String(operationsPage), page_size:String(pageSize) });
   const data = await api(`/api/admin/operations?${params}`);
   operationsTotal = Number(data.total || 0);
   const list = $("operations-list"); list.replaceChildren();
@@ -404,13 +405,15 @@ async function refreshOperations() {
     add(item.archive_code || "—", "id-cell"); add(item.card_title || item.title || "未命名档案", "title-cell");
     add(statusNames[item.status] || item.status); add(item.created_at || "—");
     add(`${Math.max(0, Number(item.retained_days) || 0)} 天`); add(String(item.clicks || 0));
+    const ctr = add(item.ctr_percent === null ? "样本不足" : `${Number(item.ctr_percent).toFixed(1)}%`);
+    ctr.title = `已统计曝光 ${Number(item.impressions) || 0} 次；至少 20 次曝光才显示点击率`;
     const action = add(""); const button = document.createElement("button"); button.className = "button secondary"; button.type = "button"; button.textContent = "查看详情";
     button.addEventListener("click", () => openOperationsDetail(item.id)); action.append(button); list.append(row);
   }
-  if (!data.rows?.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 7; cell.className = "empty"; cell.textContent = "没有匹配的档案。"; row.append(cell); list.append(row); }
-  $("operations-page-info").textContent = `共 ${operationsTotal} 条 · 第 ${operationsPage}/${Math.max(1, Math.ceil(operationsTotal / 20))} 页`;
+  if (!data.rows?.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 8; cell.className = "empty"; cell.textContent = "没有匹配的档案。"; row.append(cell); list.append(row); }
+  $("operations-page-info").textContent = `共 ${operationsTotal} 条 · 第 ${operationsPage}/${Math.max(1, Math.ceil(operationsTotal / pageSize))} 页`;
   $("operations-prev").disabled = operationsPage <= 1;
-  $("operations-next").disabled = operationsPage * 20 >= operationsTotal;
+  $("operations-next").disabled = operationsPage * pageSize >= operationsTotal;
 }
 
 async function openOperationsDetail(id) {
@@ -419,11 +422,11 @@ async function openOperationsDetail(id) {
     const list = $("operations-detail"); list.replaceChildren();
     const line = (label, value) => { const item = document.createElement("div"); item.className = "media-file"; const title = document.createElement("strong"); title.textContent = `${label}：`; const text = document.createElement("span"); text.textContent = value || "—"; item.append(title, text); list.append(item); };
     const item = data.article;
-    for (const [label, value] of [["档案 ID",item.archive_code],["档案名称",item.card_title || item.title],["状态",statusNames[item.status]],["生成时间",item.created_at],["留存时间",`${Math.max(0, Number(item.retained_days) || 0)} 天`],["累计阅读",String(item.clicks || 0)],["来源链接",item.source_url]]) line(label, value);
+    for (const [label, value] of [["档案 ID",item.archive_code],["档案名称",item.card_title || item.title],["状态",statusNames[item.status]],["生成时间",item.created_at],["留存时间",`${Math.max(0, Number(item.retained_days) || 0)} 天`],["累计阅读",String(item.clicks || 0)],["已统计曝光",String(item.impressions || 0)],["点击率",item.ctr_percent === null ? "样本不足" : `${Number(item.ctr_percent).toFixed(1)}%`],["来源链接",item.source_url]]) line(label, value);
     for (const event of data.reviews) line("审核记录",`${event.created_at} · ${event.action} · ${event.note || "无备注"}`);
     for (const event of data.imports) line("导入记录",`${event.created_at} · ${event.adapter} · ${event.note || "无备注"}`);
     $("operations-dialog").showModal();
-  } catch (error) { status("operations-status", error.message, true); }
+  } catch (error) { status("operations-notice", error.message, true); }
 }
 
 function localDateValue(utc) {
@@ -439,9 +442,8 @@ function fillAdSlot() {
   const ad = adRows.find((item) => item.slot === slot) || {};
   for (const name of ["label","title","description","icon","target_url"]) form.elements.namedItem(name).value = ad[name] || "";
   for (const name of ["starts_at","ends_at"]) form.elements.namedItem(name).value = localDateValue(ad[name]);
-  form.elements.namedItem("active").checked = Boolean(ad.active);
   if (!$("ad-editor").open) $("ad-editor").showModal();
-  $("ad-editor-title").textContent = `${ad.slot ? "查看 / 编辑" : "创建"}广告位 ${slot}`;
+  $("ad-editor-title").textContent = `${ad.title ? "查看 / 编辑" : "创建"}广告位 ${slot}`;
   for (const button of document.querySelectorAll(".ad-spot")) button.classList.toggle("selected", Number(button.dataset.slot) === slot);
   status("ad-status", ad.slot ? `已载入广告位 ${slot}。` : `广告位 ${slot} 尚未配置。`);
 }
@@ -450,9 +452,12 @@ async function refreshAds() {
   adRows = (await api("/api/admin/ads")).ads || [];
   const now = new Date().toISOString().slice(0, 16);
   for (const button of document.querySelectorAll(".ad-spot")) {
-    const ad = adRows.find((item) => item.slot === Number(button.dataset.slot));
-    const live = ad?.active && (!ad.starts_at || ad.starts_at <= now) && (!ad.ends_at || ad.ends_at > now);
-    button.querySelector("small").textContent = ad ? `${ad.title || "未命名"} · ${live ? "展示中" : ad.active ? "待展示或已到期" : "未启用"}` : "未配置 · 点击创建";
+    const slot = Number(button.dataset.slot);
+    const ad = adRows.find((item) => item.slot === slot);
+    const enabled = ad ? Boolean(ad.active) : true;
+    const live = enabled && ad?.title && ad?.target_url && (!ad.starts_at || ad.starts_at <= now) && (!ad.ends_at || ad.ends_at > now);
+    button.querySelector("small").textContent = !enabled ? "已关闭 · 首页隐藏" : !ad?.title || !ad?.target_url ? "未配置 · 示意卡展示" : `${ad.title} · ${live ? "展示中" : "待展示或已到期"}`;
+    document.querySelector(`.ad-visibility[data-slot="${slot}"]`).checked = enabled;
   }
   if ($("ad-editor").open) fillAdSlot();
 }
@@ -624,9 +629,10 @@ $("media-detail-prev").addEventListener("click", () => { if (mediaDetailPage > 1
 $("media-detail-next").addEventListener("click", () => { mediaDetailPage++; renderMediaDetail(); });
 for (const id of ["media-type","media-storage"]) $(id).addEventListener("change", () => { mediaDetailPage = 1; renderMediaDetail(); });
 let operationsTimer;
-$("operations-query").addEventListener("input", () => { operationsPage = 1; clearTimeout(operationsTimer); operationsTimer = setTimeout(() => refreshOperations().catch((error) => status("operations-status", error.message, true)), 250); });
+$("operations-query").addEventListener("input", () => { operationsPage = 1; clearTimeout(operationsTimer); operationsTimer = setTimeout(() => refreshOperations().catch((error) => status("operations-notice", error.message, true)), 250); });
+for (const id of ["operations-status","operations-sort","operations-page-size"]) $(id).addEventListener("change", () => { operationsPage = 1; refreshOperations().catch((error) => status("operations-notice", error.message, true)); });
 $("operations-prev").addEventListener("click", () => { if (operationsPage > 1) { operationsPage--; refreshOperations(); } });
-$("operations-next").addEventListener("click", () => { if (operationsPage * 20 < operationsTotal) { operationsPage++; refreshOperations(); } });
+$("operations-next").addEventListener("click", () => { if (operationsPage * Number($("operations-page-size").value) < operationsTotal) { operationsPage++; refreshOperations(); } });
 $("operations-close").addEventListener("click", () => $("operations-dialog").close());
 for (const tab of document.querySelectorAll("[data-review-filter]")) tab.addEventListener("click", () => {
   reviewFilter = tab.dataset.reviewFilter; reviewPage = 1;
@@ -651,13 +657,26 @@ for (const button of document.querySelectorAll(".ad-spot")) button.addEventListe
   $("ad-form").elements.namedItem("slot").value = button.dataset.slot;
   fillAdSlot();
 });
+for (const toggle of document.querySelectorAll(".ad-visibility")) toggle.addEventListener("change", async () => {
+  const active = toggle.checked;
+  const slot = Number(toggle.dataset.slot);
+  toggle.disabled = true;
+  try {
+    await api("/api/admin/ads", { method:"PATCH", body:JSON.stringify({ slot, active }) });
+    await refreshAds();
+    status("ads-status", `广告位 ${slot} 展示已${active ? "开启" : "关闭"}；首页刷新后生效。`);
+  } catch (error) {
+    toggle.checked = !active;
+    status("ads-status", error.message, true);
+  } finally { toggle.disabled = false; }
+});
 $("ad-close").addEventListener("click", () => $("ad-editor").close());
 $("ad-cancel").addEventListener("click", () => { if (canCloseDialog($("ad-editor"))) $("ad-editor").close(); });
 $("ad-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const adForm = event.currentTarget;
   const ad = Object.fromEntries(new FormData(adForm));
-  ad.slot = Number(ad.slot); ad.active = adForm.elements.namedItem("active").checked;
+  ad.slot = Number(ad.slot); ad.active = document.querySelector(`.ad-visibility[data-slot="${ad.slot}"]`).checked;
   for (const name of ["starts_at","ends_at"]) ad[name] = ad[name] ? new Date(ad[name]).toISOString().slice(0,16) : "";
   if (ad.active && !await confirmAction({ badge:"广告启用", title:`确认启用广告位 ${ad.slot}？`, summary:`将向访客展示「${ad.title}」。`, detail:`推广链接：${ad.target_url}`, confirmText:"确认启用" })) return;
   const button = adForm.querySelector("button[type=submit]"); button.disabled = true; adForm.dataset.saving = "true";

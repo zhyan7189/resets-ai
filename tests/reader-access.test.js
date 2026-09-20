@@ -28,10 +28,13 @@ function fixture() {
 const req = (path, options = {}) => new Request(`https://example.com${path}`, options);
 const post = (path, body, cookie = "") => req(path, { method:"POST", headers:{ origin:"https://example.com", "content-type":"application/json", ...(cookie ? { cookie } : {}) }, body:JSON.stringify(body) });
 
-test("访客固定只看最新一篇，直达旧档案被服务端拒绝；读者注册后不限篇数", async () => {
+test("访客看到全部档案但只能完整阅读最新一篇；读者注册后不限篇数", async () => {
   const { env, sqlite } = fixture();
   const publicList = await list({ request:req("/api/articles"), env });
-  assert.deepEqual((await publicList.json()).articles.map((row) => row.id), ["archive-7"]);
+  const publicData = await publicList.json();
+  assert.deepEqual(publicData.articles.map((row) => row.id), Array.from({ length:7 }, (_, i) => `archive-${7-i}`));
+  assert.equal(publicData.free_article_id, "archive-7");
+  assert.equal(publicData.limited, true);
   assert.equal((await item({ request:req("/api/articles/item?id=archive-1"), env })).status, 403);
   assert.equal((await item({ request:req("/api/articles/item?id=archive-6"), env })).status, 403);
   assert.equal((await item({ request:req("/api/articles/item?id=archive-7"), env })).status, 200);
@@ -42,11 +45,41 @@ test("访客固定只看最新一篇，直达旧档案被服务端拒绝；读�
   assert.notEqual(stored.password_hash, "a long reader password");
   assert.equal(stored.password_hash.length, 64);
   assert.equal((await (await session({ request:req("/api/reader/session", { headers:{ cookie } }), env })).json()).username, "reader_1");
-  assert.equal((await (await list({ request:req("/api/articles", { headers:{ cookie } }), env })).json()).articles.length, 7);
+  const readerList = await (await list({ request:req("/api/articles", { headers:{ cookie } }), env })).json();
+  assert.equal(readerList.articles.length, 7);
+  assert.equal(readerList.limited, false);
   assert.equal((await item({ request:req("/api/articles/item?id=archive-1", { headers:{ cookie } }), env })).status, 200);
   const ended = await logout({ request:post("/api/reader/logout", {}, cookie), env });
   assert.equal(ended.status, 200);
   assert.equal((await item({ request:req("/api/articles/item?id=archive-1", { headers:{ cookie } }), env })).status, 403);
+});
+
+test("运营中心按状态和点击率筛选排序，并按 10 或 20 条分页", async () => {
+  const { env, sqlite } = fixture();
+  for (let n = 8; n <= 12; n++) {
+    sqlite.prepare("INSERT INTO articles (id,source_url,title,author,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?)")
+      .run(`archive-${n}`, `https://example.org/${n}`, `档案 ${n}`, "writer", "published", `2026-09-${String(n).padStart(2,"0")}`, `2026-09-${String(n).padStart(2,"0")}`);
+  }
+  sqlite.prepare("UPDATE articles SET status='draft' WHERE id='archive-4'").run();
+  const metrics = sqlite.prepare("INSERT INTO article_metrics_daily (article_id,day,impressions,clicks) VALUES (?,?,?,?)");
+  metrics.run("archive-1", "2026-09-20", 20, 2);
+  metrics.run("archive-2", "2026-09-20", 30, 15);
+  metrics.run("archive-3", "2026-09-20", 10, 9);
+  const get = async (query) => {
+    const response = await operations({ request:req(`/api/admin/operations?${query}`, { headers:{ authorization:"Bearer test-admin" } }), env });
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+  const first = await get("page=1&page_size=10");
+  assert.equal(first.total, 12);
+  assert.equal(first.rows.length, 10);
+  assert.equal((await get("page=2&page_size=10")).rows.length, 2);
+  assert.equal((await get("page=1&page_size=20")).rows.length, 12);
+  assert.deepEqual((await get("status=draft")).rows.map((row) => row.id), ["archive-4"]);
+  const ranked = await get("sort=highest_ctr&page_size=20");
+  assert.deepEqual(ranked.rows.slice(0, 2).map((row) => row.id), ["archive-2", "archive-1"]);
+  assert.equal(ranked.rows[0].ctr_percent, 50);
+  assert.equal(ranked.rows.find((row) => row.id === "archive-3").ctr_percent, null);
 });
 
 test("读者登录拒绝错误密码与跨站请求，档案 ID 稳定且运营列表可查", async () => {

@@ -38,3 +38,18 @@ export async function onRequestPut({ request, env }) {
     return json({ ok:true, slot });
   } catch { return json({ error:"ad_save_failed" }, 503); }
 }
+
+export async function onRequestPatch({ request, env }) {
+  if (!await authorized(request, env)) return json({ error:"unauthorized" }, 401);
+  const missing = database(env);
+  if (missing) return missing;
+  let input;
+  try { input = await request.json(); } catch { return json({ error:"invalid_json" }, 400); }
+  const slot = Number(input?.slot);
+  if (!Number.isInteger(slot) || slot < 1 || slot > 4 || typeof input?.active !== "boolean") return json({ error:"invalid_ad_visibility" }, 400);
+  try {
+    await env.DB.prepare(`INSERT INTO ad_slots (slot,active) VALUES (?,?)
+      ON CONFLICT(slot) DO UPDATE SET active=excluded.active,updated_at=CURRENT_TIMESTAMP`).bind(slot, input.active ? 1 : 0).run();
+    return json({ ok:true, slot, active:input.active });
+  } catch { return json({ error:"ad_save_failed" }, 503); }
+}

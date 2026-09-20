@@ -5,13 +5,16 @@ const categoryNames = { opportunity:"机会资讯", tutorial:"实操教程", too
 let activeArticleFilter = "all";
 let articleSearch = "";
 let publishedLoaded = false;
+let readerLimited = true;
+let freeArticleId = null;
 
 const $ = (id) => document.getElementById(id);
 async function loadAds() {
   try {
     const response = await fetch("/api/ads", { headers:{ accept:"application/json" }, cache:"no-store" });
     if (!response.ok) return;
-    const { ads } = await response.json();
+    const { ads, hidden_slots: hiddenSlots = [] } = await response.json();
+    for (const slot of hiddenSlots) document.querySelector(`[data-ad-slot="${slot}"]`)?.remove();
     for (const ad of ads || []) {
       const placeholder = document.querySelector(`[data-ad-slot="${ad.slot}"]`);
       if (!placeholder || !/^https:\/\//i.test(ad.target_url || "")) continue;
@@ -29,7 +32,8 @@ async function loadAds() {
       }
       placeholder.replaceWith(link);
     }
-  } catch { /* 广告接口暂不可用时保留原示意卡。 */ }
+    for (const rail of document.querySelectorAll(".rail")) rail.hidden = !rail.querySelector(".ad");
+  } catch { /* 无法确认展示配置时不显示广告位。 */ }
 }
 function readReminderPreference() {
   try {
@@ -396,9 +400,10 @@ function renderArticles(filter = "all") {
     (!articleSearch || [item.title, item.summary, item.source].join(" ").toLocaleLowerCase().includes(articleSearch)));
   for (const article of shown) {
     const card = document.createElement("button");
+    const registrationRequired = article.articleType === "database" && readerLimited && article.id !== freeArticleId;
     card.className = "article" + (article.style ? " " + article.style : "");
     card.type = "button";
-    card.setAttribute("aria-label", `打开文章：${article.title}`);
+    card.setAttribute("aria-label", `${registrationRequired ? "注册后阅读" : "打开文章"}：${article.title}`);
     card.addEventListener("click", () => openArticleReader(article));
     if (article.articleType === "database" && impressionObserver) { card.dataset.articleId = article.id; impressionObserver.observe(card); }
     const kicker = document.createElement("span");
@@ -429,7 +434,7 @@ function renderArticles(filter = "all") {
     const source = document.createElement("span");
     source.textContent = article.source;
     const action = document.createElement("span");
-    action.textContent = "站内阅读 ↗";
+    action.textContent = registrationRequired ? "注册解锁 ↗" : "站内阅读 ↗";
     foot.append(source, action);
     card.append(kicker, title, summary, foot);
     grid.append(card);
@@ -448,6 +453,8 @@ async function loadPublishedArticles() {
     if (!response.ok) throw new Error("档案接口暂不可用");
     const data = await response.json();
     publishedLoaded = true;
+    readerLimited = Boolean(data.limited);
+    freeArticleId = data.free_article_id || null;
     articles.length = 0;
     for (const row of data.articles || []) {
       if (articles.some((item) => item.id === row.id || item.url === row.source_url)) continue;
@@ -462,7 +469,7 @@ async function loadPublishedArticles() {
     renderArticles(activeArticleFilter);
     loadPopularArticle();
     $("reader-access").innerHTML = data.limited
-      ? '访客可阅读最新 1 篇档案。<a href="/register.html">注册后阅读全部档案 ↗</a>'
+      ? '全部档案均可浏览；最新 1 篇可完整阅读。<a href="/register.html">注册后解锁全站 ↗</a>'
       : '已登录读者账号，可阅读全部已发布档案。';
   } catch {
     renderPopularArticle(null);
@@ -528,7 +535,18 @@ function youtubeEmbedUrl(value) {
 }
 
 let readerRequest = 0;
+function showRegistrationGate(article) {
+  const gate = $("reader-gate");
+  $("gate-archive").textContent = article.cardTitle || article.title;
+  $("gate-register").href = `/register.html?next=${encodeURIComponent(article.url || "/#news")}`;
+  if (!gate.open) gate.showModal();
+}
+
 async function openArticleReader(article) {
+  if (publishedLoaded && article.articleType === "database" && readerLimited && article.id !== freeArticleId) {
+    showRegistrationGate(article);
+    return;
+  }
   const reader = $("article-reader");
   if (!reader) return;
   const requestId = ++readerRequest;
@@ -554,7 +572,11 @@ async function openArticleReader(article) {
   if (article.articleType === "database") {
     try {
       const response = await fetch(`/api/articles/item?id=${encodeURIComponent(article.id)}`, { cache:"no-store" });
-      if (!response.ok) throw new Error(response.status === 403 ? "这篇档案需要读者账号。请注册或登录后阅读。" : "文章暂时无法读取");
+      if (response.status === 403) {
+        if (requestId === readerRequest) { closeArticleReader(); showRegistrationGate(article); }
+        return;
+      }
+      if (!response.ok) throw new Error("文章暂时无法读取");
       const { article:record } = await response.json();
       if (requestId !== readerRequest) return;
       recordArticleClick(article);
@@ -596,9 +618,6 @@ async function openArticleReader(article) {
     } catch (error) {
       if (requestId === readerRequest) {
         appendStoredBody(error.message, body);
-        if (error.message.includes("读者账号")) {
-          const link = document.createElement("a"); link.href = "/register.html"; link.textContent = "注册读者账号 ↗"; body.append(link);
-        }
       }
     }
     return;
@@ -688,6 +707,11 @@ $("article-search")?.addEventListener("input", (event) => {
 $("reader-close")?.addEventListener("click", closeArticleReader);
 $("article-reader")?.addEventListener("click", (event) => {
   if (event.target === event.currentTarget) closeArticleReader();
+});
+$("gate-close")?.addEventListener("click", () => $("reader-gate").close());
+$("gate-later")?.addEventListener("click", () => $("reader-gate").close());
+$("reader-gate")?.addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) event.currentTarget.close();
 });
 $("popular-article")?.addEventListener("click", handlePopularArticleClick);
 async function refreshReaderSession() {
