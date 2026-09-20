@@ -21,6 +21,7 @@
       .brand { font:800 38px/1 Baloo,GenSen,sans-serif; letter-spacing:-1px; }
       .brand-sub { margin-top:3px; color:var(--muted); font-size:12px; letter-spacing:.12em; }
       .mast-spacer { flex:1; }
+      .mast-nav { display:flex; align-items:center; gap:10px; }
       .nav-pill { background:var(--card); border:2px solid var(--ink); border-radius:999px; padding:8px 13px; text-decoration:none; font-weight:700; font-size:13px; box-shadow:2px 2px 0 var(--ink); }
       .intro { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:30px 0 17px; }
       .intro-copy { margin:0; font-size:17px; line-height:1.55; color:#51483e; }
@@ -216,6 +217,7 @@
       @media(max-width:1230px) { .rail { display:none; } }
       @media(max-width:700px) { .shell { width:min(100% - 28px,808px); padding-top:18px; } .brand { font-size:30px; } .brand-sub,.mast .nav-pill:nth-last-child(2),.signal { display:none; } .intro { margin:22px 0 15px; } .reset-card { padding:23px 20px; } .reset-number { font-size:58px; } .reset-main { align-items:center; gap:16px; } .reset-side { padding:19px 0 0; } .heat-scroll { overflow-x:auto; } .history-row { grid-template-columns:78px 1fr 18px; gap:9px; padding:11px; } .feature { grid-template-columns:1fr; } .feature-art { min-height:105px; } .article-grid { grid-template-columns:1fr; } .cell-tooltip { padding:13px 16px 14px; } .cell-tooltip-date { font-size:15px; } .cell-tooltip-copy { font-size:13px; } }
       @media(max-width:700px) { .article-tools { display:block; } .article-search { width:100%; margin-top:12px; } }
+      @media(max-width:700px) { .mast { flex-wrap:wrap; } .mast-nav { width:100%; justify-content:flex-end; } .mast .mast-nav .nav-history { display:none; } .mast .mast-nav .nav-pill:nth-last-child(2) { display:inline-block; } }
       @media(max-width:700px) { .article-reader-panel { padding:20px 17px 18px; border-radius:14px; } .reader-title { font-size:24px; } .reader-cover { max-height:210px; } .reader-footer { align-items:flex-start; flex-direction:column; } }
     </style>
   </head>
@@ -233,8 +235,7 @@
         <img class="avatar" src="/thsottiaux-avatar.jpg" alt="" />
         <div><div class="brand">Resets AI</div><div class="brand-sub">CODEX 重置动态 · AI 机会情报</div></div>
         <div class="mast-spacer"></div>
-        <a class="nav-pill" href="#history">重置历史</a>
-        <a class="nav-pill" href="#news">AI 赚钱情报</a>
+        <nav class="mast-nav" aria-label="页面导航"><a class="nav-pill nav-history" href="#history">重置历史</a><a class="nav-pill" href="#news">AI 赚钱情报</a><a class="nav-pill" href="/login">控制台</a></nav>
       </header>
       <main>
         <div class="intro"><p class="intro-copy"><strong>关注 Codex 重置公告，</strong>也发现值得实践的 AI 机会。</p><span class="signal"><i></i>公开公告追踪中</span></div>

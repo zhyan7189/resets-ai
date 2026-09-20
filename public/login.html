@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>登录控制台 · Resets AI</title>
+  <style>
+    @font-face { font-family:GenSen; src:url("/fonts/GenSenRounded-Heavy-UI.woff2"); font-weight:800; font-display:swap; }
+    :root { --ink:#192753; --muted:#536381; --paper:#eaf2ff; --surface:#fafdff; --mint:#80e8d8; --violet:#6754dc; }
+    * { box-sizing:border-box; }
+    body { min-height:100vh; margin:0; color:var(--ink); background:var(--paper); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+    button,input { font:inherit; }
+    a { color:inherit; }
+    .shell { width:min(100% - 36px,1040px); margin:auto; padding:28px 0 48px; }
+    .mast { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    .brand { text-decoration:none; font:800 26px/1 GenSen,sans-serif; }
+    .back { padding:9px 14px; border:2px solid var(--ink); border-radius:999px; background:var(--surface); text-decoration:none; font-size:13px; font-weight:800; box-shadow:3px 3px 0 var(--ink); }
+    .stage { min-height:calc(100vh - 120px); display:grid; grid-template-columns:minmax(0,1fr) minmax(310px,410px); gap:46px; align-items:center; }
+    .intro-tag { display:inline-block; padding:8px 13px; border:2px solid var(--ink); border-radius:8px; background:var(--mint); transform:rotate(-2deg); box-shadow:3px 3px 0 var(--ink); font:800 14px GenSen,sans-serif; }
+    h1 { max-width:580px; margin:25px 0 18px; font:800 clamp(38px,6vw,64px)/1.16 GenSen,sans-serif; }
+    .intro p { max-width:470px; margin:0; color:var(--muted); font-size:16px; line-height:1.8; }
+    .line { width:min(80%,360px); height:13px; margin-top:35px; border:3px solid var(--ink); border-radius:999px; background:var(--violet); transform:rotate(-2deg); }
+    .card { padding:34px; border:3px solid var(--ink); border-radius:23px; background-color:var(--surface); background-image:radial-gradient(#dfe6f5 1.5px,transparent 1.5px); background-size:19px 19px; box-shadow:8px 8px 0 var(--ink); }
+    .card h2 { margin:0; font:800 28px GenSen,sans-serif; }
+    .card-copy { margin:9px 0 28px; color:var(--muted); font-size:13px; line-height:1.6; }
+    label { display:block; font-size:13px; font-weight:800; }
+    input { width:100%; height:48px; margin-top:9px; padding:0 14px; border:2px solid var(--ink); border-radius:11px; background:#fff; color:var(--ink); outline:none; }
+    input:focus-visible { box-shadow:0 0 0 4px #80e8d899; }
+    .submit { width:100%; min-height:49px; margin-top:20px; border:2px solid var(--ink); border-radius:11px; background:var(--mint); color:var(--ink); font-size:15px; font-weight:800; cursor:pointer; box-shadow:4px 4px 0 var(--ink); }
+    .submit:hover { transform:translateY(-2px); }
+    .submit:disabled { opacity:.6; cursor:wait; }
+    .status { min-height:22px; margin:15px 0 0; color:#af3450; font-size:12px; font-weight:800; }
+    .hint { margin:13px 0 0; color:var(--muted); font-size:11px; line-height:1.6; }
+    @media(max-width:750px) { .stage { min-height:auto; grid-template-columns:1fr; gap:32px; padding-top:68px; } .intro p,.line { display:none; } .intro h1 { margin-bottom:0; } .card { padding:25px; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="mast"><a class="brand" href="/">Resets AI</a><a class="back" href="/">← 返回网站</a></header>
+    <main class="stage">
+      <div class="intro"><span class="intro-tag">内容工作台</span><h1>登录控制台</h1><p>导入链接、核对原文和图片，再由你决定何时发布。</p><div class="line" aria-hidden="true"></div></div>
+      <section class="card" aria-labelledby="login-title">
+        <h2 id="login-title">管理员登录</h2><p class="card-copy">请输入你在 Cloudflare 设置的管理密码。</p>
+        <form id="login-form"><label for="password">管理密码</label><input id="password" type="password" autocomplete="current-password" required autofocus /><button class="submit" id="submit" type="submit">进入控制台 ↗</button><p class="status" id="status" role="status" aria-live="polite"></p></form>
+        <p class="hint">登录信息只保留在当前浏览器标签页，关闭标签页后失效。</p>
+      </section>
+    </main>
+  </div>
+  <script defer src="/login.js"></script>
+</body>
+</html>

@@ -2,6 +2,7 @@ const $ = (id) => document.getElementById(id);
 const form = $("article-form");
 const categoryNames = { opportunity:"机会资讯", tutorial:"实操教程", tools:"工具观察", case:"创业案例", pitfall:"避坑经验" };
 const statusNames = { draft:"草稿", needs_help:"需协助", review:"待审核", published:"已发布", archived:"已下架" };
+const sessionKey = "resets-ai-admin-token";
 let token = "";
 let editingId = "";
 let revision = null;
@@ -27,6 +28,10 @@ async function api(path, options = {}) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (response.status === 401) {
+      sessionStorage.removeItem(sessionKey);
+      window.location.replace("/login");
+    }
     const labels = {
       unauthorized:"管理密钥无效或未配置", database_unconfigured:"尚未绑定 D1 数据库",
       duplicate_url:"这条链接已经收录，请从内容库打开编辑", save_failed_or_duplicate_url:"保存失败：链接重复或数据库尚未升级",
@@ -113,6 +118,14 @@ function fill(article = {}) {
   field("rights_confirmed").checked = Boolean(article.rights_confirmed);
   $("original-body").value = originalBody;
   $("extraction-note").textContent = extractionNote ? `待处理：${extractionNote}` : "原文、媒体顺序与授权仍需人工逐项核对。";
+  let media = [];
+  try { media = JSON.parse(article.media_manifest || "[]"); } catch { /* 旧草稿可能没有媒体清单。 */ }
+  if (!Array.isArray(media)) media = [];
+  const imageUrls = [...new Set(media.filter((item) => item.type === "cover" || item.type === "image").map((item) => item.url))];
+  const savedImages = imageUrls.filter((url) => url.startsWith("/api/media/")).length;
+  $("media-import-summary").textContent = !article.id ? "解析链接后，可获取的图片会自动保存到 R2。" :
+    imageUrls.length ? `图片已存入 R2：${savedImages}/${imageUrls.length} 张。${savedImages < imageUrls.length ? "未入库的图片已保留原地址，请在发布前核对。" : ""}` :
+    "来源页面未提取到可保存的图片。";
   $("editor-title").textContent = editingId ? "审核与编辑内容" : "编辑新草稿";
   $("current-status").textContent = `当前：${statusNames[article.status] || "未保存"}${revision ? ` · 第 ${revision} 版` : ""}`;
   $("archive-button").hidden = article.status !== "published";
@@ -268,15 +281,20 @@ async function loadVersions() {
   } catch (error) { status("save-status", error.message, true); }
 }
 
-$("login").addEventListener("click", async () => {
-  token = $("token").value.trim();
-  if (!token) return status("login-status", "请输入管理密钥。", true);
-  $("login").disabled = true; status("login-status", "正在验证…");
+async function openWorkspace() {
+  if (window.location.protocol === "file:") {
+    document.body.textContent = "请通过本地服务打开 /login 页面。";
+    return;
+  }
+  token = sessionStorage.getItem(sessionKey) || "";
+  if (!token) {
+    window.location.replace("/login");
+    return;
+  }
   try {
     await api("/api/admin/auth");
     const results = await Promise.allSettled([refreshList(), refreshOverview(), refreshMedia(), refreshAds()]);
-    $("token").value = "";
-    $("login-panel").hidden = true;
+    $("workspace").hidden = false;
     const failures = results.filter((result) => result.status === "rejected");
     $("preview-banner").hidden = failures.length === 0;
     if (failures.length) $("preview-banner").textContent = `已登录，但部分数据尚不可用：${failures.map((result) => result.reason?.message || "加载失败").join("；")}。请检查本地数据库配置。`;
@@ -285,21 +303,31 @@ $("login").addEventListener("click", async () => {
     $("ad-form").querySelector("button[type=submit]").disabled = results[3].status !== "fulfilled";
     if (results[1].status !== "fulfilled") $("setting-d1").textContent = "未连接或未升级";
     refreshResetHealth();
+  } catch {
+    sessionStorage.removeItem(sessionKey);
+    window.location.replace("/login");
   }
-  catch (error) { token = ""; status("login-status", error.message, true); }
-  finally { $("login").disabled = false; }
+}
+
+$("logout").addEventListener("click", () => {
+  sessionStorage.removeItem(sessionKey);
+  token = "";
+  window.location.replace("/login");
 });
+
+openWorkspace();
 
 $("manual").addEventListener("click", () => { fill({ source_url:$("import-url").value.trim(), format:"article", category:"opportunity", rights:"licensed", status:"draft" }); status("import-status", "已打开空白草稿；补全后请先保存。 "); });
 
 $("import").addEventListener("click", async () => {
   const url = $("import-url").value.trim();
   if (!url) return status("import-status", "请先粘贴链接。", true);
-  $("import").disabled = true; status("import-status", "正在提取并保存导入任务…");
+  $("import").disabled = true; status("import-status", "正在提取原文并将可获取的图片保存到 R2…");
   try {
     const result = await api("/api/admin/import", { method:"POST", body:JSON.stringify({ url }) });
     fill(result.draft);
-    status("import-status", result.issues.length ? `已保存到“需协助”：${result.issues.join("；")}` : "已保存到“待审核”。请核对原文与素材后再确认发布。");
+    const mediaStatus = result.media?.total ? `图片已自动存入 R2：${result.media.saved}/${result.media.total} 张。` : "来源页面未提取到图片。";
+    status("import-status", result.issues.length ? `${mediaStatus}已保存到“需协助”：${result.issues.join("；")}` : `${mediaStatus}已保存到“待审核”。请核对原文与素材后再确认发布。`);
     await Promise.all([refreshList(), refreshOverview(), refreshMedia()]);
   } catch (error) {
     status("import-status", error.message, true);
@@ -313,23 +341,6 @@ for (const tab of $("status-tabs").querySelectorAll("button")) tab.addEventListe
   renderList();
 });
 for (const id of ["filter-query","filter-source","filter-format"]) $(id).addEventListener(id === "filter-query" ? "input" : "change", renderList);
-
-async function uploadImage(asCover) {
-  const file = $("upload-image").files?.[0];
-  if (!file) return status("upload-status", "请先选择图片。", true);
-  const payload = new FormData(); payload.append("image", file);
-  $("upload-cover").disabled = $("upload-body").disabled = true;
-  status("upload-status", "正在上传图片…");
-  try {
-    const result = await api("/api/admin/upload", { method:"POST", body:payload });
-    if (asCover) field("cover_url").value = result.url;
-    else { const body = field("body"); body.setRangeText(`\n\n![图片说明](${result.url})\n\n`, body.selectionStart, body.selectionEnd, "end"); }
-    preview(); status("upload-status", "图片已上传；保存文章后生效。");
-  } catch (error) { status("upload-status", error.message, true); }
-  finally { $("upload-cover").disabled = $("upload-body").disabled = false; }
-}
-$("upload-cover").addEventListener("click", () => uploadImage(true));
-$("upload-body").addEventListener("click", () => uploadImage(false));
 
 $("ad-form").elements.namedItem("slot").addEventListener("change", fillAdSlot);
 $("ad-form").addEventListener("submit", async (event) => {
@@ -384,13 +395,3 @@ function syncNavigation() {
 }
 window.addEventListener("hashchange", syncNavigation);
 syncNavigation();
-
-if (window.location.protocol === "file:") {
-  for (const link of document.querySelectorAll('a[href="/"]')) link.href = "http://127.0.0.1:8788/";
-  $("token").disabled = true;
-  $("login").disabled = true;
-  const link = document.createElement("a");
-  link.href = "http://127.0.0.1:8788/admin";
-  link.textContent = "打开本地后台登录 ↗";
-  $("login-status").append("当前是文件预览，登录和真实数据请使用本地服务：", link);
-}

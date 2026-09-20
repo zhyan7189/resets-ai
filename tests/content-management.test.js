@@ -185,11 +185,30 @@ test("导入图片到 R2 后仍保留原始图片地址供审核", async () => {
   try {
     const response = await importLink({ request:request("/api/admin/import", "POST", { url:"https://example.org/post" }, true), env });
     assert.equal(response.status, 201);
-    const { draft } = await response.json();
+    const { draft, media } = await response.json();
     assert.equal(images.size, 1);
+    assert.deepEqual(media, { total:1, saved:1 });
     assert.match(draft.original_body, /https:\/\/example\.org\/a\.png/);
     assert.match(draft.body, /\/api\/media\/[a-f0-9-]{36}\.png/);
     assert.equal(draft.status, "review");
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("只有封面图的视频链接也会自动保存图片到 R2", async () => {
+  const env = environment();
+  const images = new Map();
+  env.MEDIA = { async put(key, data) { images.set(key, data); } };
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => String(url).endsWith("cover.png") ?
+    new Response(new Uint8Array([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0,0,0,0]), { headers:{ "content-type":"image/png" } }) :
+    new Response('<meta property="og:title" content="视频原题"><meta property="og:description" content="视频简介"><meta name="author" content="原作者"><meta property="og:image" content="https://img.example.org/cover.png">', { headers:{ "content-type":"text/html" } });
+  try {
+    const response = await importLink({ request:request("/api/admin/import", "POST", { url:"https://www.youtube.com/watch?v=abcdefghijk" }, true), env });
+    assert.equal(response.status, 201);
+    const { draft, media } = await response.json();
+    assert.deepEqual(media, { total:1, saved:1 });
+    assert.equal(images.size, 1);
+    assert.match(draft.cover_url, /^\/api\/media\/[a-f0-9-]{36}\.png$/);
   } finally { globalThis.fetch = realFetch; }
 });
 

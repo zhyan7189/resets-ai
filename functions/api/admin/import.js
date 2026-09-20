@@ -134,7 +134,7 @@ async function mirrorImage(url, env) {
 
 async function mirrorArticleMedia(metadata, env) {
   const missing = [];
-  const urls = [...new Set(mediaManifest(metadata.body, metadata.cover_url, "").map((item) => item.url))];
+  const urls = [...new Set(mediaManifest(metadata.format === "article" ? metadata.body : "", metadata.cover_url, "").map((item) => item.url))];
   const copied = new Map();
   if (urls.length > 24) missing.push(`图片数量超过单次导入上限（${urls.length} 张）；请核对并补齐。`);
   const queue = urls.slice(0, 24);
@@ -151,6 +151,8 @@ async function mirrorArticleMedia(metadata, env) {
     body:metadata.body.replace(/^!\[([^\]]*)\]\(([^\s)]+)\)\s*$/gm, (raw, alt, url) => copied.has(url) ? `![${alt}](${copied.get(url)})` : raw),
     cover_url:copied.get(metadata.cover_url) || metadata.cover_url,
     missing,
+    total:urls.length,
+    saved:copied.size,
   };
 }
 
@@ -204,12 +206,10 @@ export async function onRequestPost({ request, env }) {
   } catch {
     issues.push("来源页面无法由服务器读取；请从已授权的原文或作者文件补全。 ");
   }
-  if (metadata.format === "article" && metadata.body) {
-    const media = await mirrorArticleMedia(metadata, env);
-    metadata.body = media.body;
-    metadata.cover_url = media.cover_url;
-    issues.push(...media.missing);
-  }
+  const media = await mirrorArticleMedia(metadata, env);
+  metadata.body = media.body;
+  metadata.cover_url = media.cover_url;
+  issues.push(...media.missing);
   if (!metadata.title) issues.push("缺少原标题");
   if (!metadata.author || metadata.author === "@") issues.push("缺少作者 ID");
   if (metadata.format === "article" && !metadata.body) issues.push("缺少完整正文与图片顺序");
@@ -232,6 +232,6 @@ export async function onRequestPost({ request, env }) {
       env.DB.prepare("INSERT INTO article_versions (article_id,revision,snapshot) VALUES (?,?,?)").bind(id, 1, JSON.stringify({ id, ...article, revision:1 })),
       env.DB.prepare("INSERT INTO import_jobs (id,article_id,source_url,adapter,state,note) VALUES (?,?,?,?,?,?)").bind(jobId, id, url, sourceAdapter(url), article.status, article.extraction_note),
     ]);
-    return json({ id, job_id:jobId, draft:{ id, revision:1, ...article }, extraction, issues, ai_generated:Boolean(ai) }, 201);
+    return json({ id, job_id:jobId, draft:{ id, revision:1, ...article }, extraction, issues, media:{ total:media.total, saved:media.saved }, ai_generated:Boolean(ai) }, 201);
   } catch { return json({ error:"import_save_failed" }, 503); }
 }
