@@ -1,14 +1,10 @@
 import { historyCalendar, normalizeEvents, readableEventText, relativeLabel, tooltipDetails } from "./model.js";
 
-const articles = [
-  { id:"stripe-ai-pricing", category:"tutorial", label:"实操教程 · Stripe", title:"AI 产品怎样定价，才不会越用越亏？", summary:"比较订阅、按量和混合收费，先对齐用户价值与模型成本。", source:"Stripe · 2026-04-19", url:"https://stripe.com/resources/more/ai-pricing-models", style:"" },
-  { id:"xilo-codex-editing", category:"tutorial", label:"实操教程 · X / xilo", title:"Codex剪辑第三弹：2条视频接下近四位数商单，知识类视频剪辑方法全公开【万字长文】", cardTitle:"Codex 剪辑第三弹：2 条视频接下近四位数商单", summary:"从 A-roll、B-roll、配音对齐到视觉编排，拆解如何用 Codex 做知识类视频并获得商单机会。", source:"xilo · 2026-08-22", url:"https://x.com/xilo2991/status/2091071218963411453", style:"rose", articleType:"source", authorId:"@xilo2991", contentUrl:"/data/xilo-article.json", featured:true },
-  { id:"cloudflare-workers-ai", category:"tools", label:"工具观察 · Cloudflare", title:"用 Workers AI 做出第一个可运行应用", summary:"官方入门文档覆盖模型调用与部署，适合验证小型产品。", source:"Cloudflare · 2026-04-21", url:"https://developers.cloudflare.com/workers-ai/get-started/", style:"mint" },
-  { id:"zapier-ai-automation", category:"tutorial", label:"实操教程 · Zapier", title:"用 AI 自动化交付重复的业务流程", summary:"从流程拆分与工具连接入手，观察服务型产品的交付方式。", source:"Zapier · 2026-04-01", url:"https://zapier.com/blog/ai-for-business-automation/", style:"" },
-];
+const articles = [];
 const categoryNames = { opportunity:"机会资讯", tutorial:"实操教程", tools:"工具观察", case:"创业案例", pitfall:"避坑经验" };
 let activeArticleFilter = "all";
 let articleSearch = "";
+let publishedLoaded = false;
 
 const $ = (id) => document.getElementById(id);
 async function loadAds() {
@@ -47,53 +43,27 @@ let reminderEnabled = readReminderPreference();
 let activeTooltip = null;
 let pleaState = { cycleId:"", count:null, localCount:0 };
 let popularArticle = null;
-let localArticleClicks = readLocalArticleClicks();
 let impressionObserver;
 const seenImpressions = new Set();
 
 fetch("/api/analytics/visit", { method:"POST", keepalive:true }).catch(() => {});
 
-function readLocalArticleClicks() {
-  try {
-    const value = JSON.parse(localStorage.getItem("resets-ai-article-clicks") || "{}");
-    return value && typeof value === "object" ? value : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveLocalArticleClicks() {
-  try {
-    localStorage.setItem("resets-ai-article-clicks", JSON.stringify(localArticleClicks));
-  } catch {
-    // 本地统计不可用时，仍会尝试写入服务端。
-  }
-}
-
 function recordArticleClick(article) {
   if (!article?.id) return;
-  localArticleClicks[article.id] = Number(localArticleClicks[article.id] || 0) + 1;
-  saveLocalArticleClicks();
   fetch("/api/articles/click", {
     method:"POST",
     headers:{ "content-type":"application/json", accept:"application/json" },
     body:JSON.stringify({ article_id:article.id }),
     keepalive:true,
-  }).catch(() => {});
-}
-
-function localPopularArticle() {
-  return articles
-    .map((article) => ({ article, clicks:Number(localArticleClicks[article.id] || 0) }))
-    .sort((a, b) => b.clicks - a.clicks || Number(Boolean(b.article.featured)) - Number(Boolean(a.article.featured)))[0];
+  }).then((response) => { if (response.ok) loadPopularArticle(); }).catch(() => {});
 }
 
 function renderPopularArticle(article, clicks = 0) {
   const card = $("popular-article");
   if (!card) return;
   card.hidden = !article;
-  if (!article) return;
   popularArticle = article;
+  if (!article) return;
   card.href = article.url;
   card.target = "_self";
   card.rel = "noopener noreferrer";
@@ -116,18 +86,20 @@ function renderPopularArticle(article, clicks = 0) {
 }
 
 async function loadPopularArticle() {
-  const local = localPopularArticle();
-  if (!local) { renderPopularArticle(null); return; }
   try {
     const response = await fetch("/api/articles/popular", { headers:{ accept:"application/json" }, cache:"no-store" });
     if (!response.ok) throw new Error("热度接口暂不可用");
     const data = await response.json();
-    const serverArticle = articles.find((article) => article.id === data.article_id);
-    const article = serverArticle || local.article;
-    const clicks = Math.max(Number(data.clicks || 0), Number(localArticleClicks[article.id] || 0));
-    renderPopularArticle(article, clicks);
+    const row = data.article;
+    renderPopularArticle(row ? {
+      id:row.id, category:row.category, label:`${categoryNames[row.category] || "机会资讯"} · ${row.source_name}${row.format === "video" ? " · 视频" : ""}`,
+      title:row.title, cardTitle:row.card_title, summary:row.summary,
+      source:`${row.author} · ${row.published_at ? row.published_at.slice(0, 10) : "日期未注明"}`,
+      url:`/article.html?id=${encodeURIComponent(row.id)}`, coverUrl:row.cover_url,
+      articleType:"database", format:row.format,
+    } : null, Number(data.clicks || 0));
   } catch {
-    renderPopularArticle(local.article, local.clicks);
+    renderPopularArticle(articles[0] || null);
   }
 }
 
@@ -427,7 +399,6 @@ function renderArticles(filter = "all") {
     card.className = "article" + (article.style ? " " + article.style : "");
     card.type = "button";
     card.setAttribute("aria-label", `打开文章：${article.title}`);
-    card.addEventListener("click", () => recordArticleClick(article), { capture:true });
     card.addEventListener("click", () => openArticleReader(article));
     if (article.articleType === "database" && impressionObserver) { card.dataset.articleId = article.id; impressionObserver.observe(card); }
     const kicker = document.createElement("span");
@@ -466,7 +437,7 @@ function renderArticles(filter = "all") {
   if (!shown.length) {
     const empty = document.createElement("p");
     empty.className = "article-empty";
-    empty.textContent = "没有找到符合条件的内容。";
+    empty.textContent = !publishedLoaded && !articles.length ? "正在读取档案…" : filter === "all" && !articleSearch && !articles.length ? "当前页面没有任何档案。" : "没有找到符合条件的档案。";
     grid.append(empty);
   }
 }
@@ -474,12 +445,13 @@ function renderArticles(filter = "all") {
 async function loadPublishedArticles() {
   try {
     const response = await fetch("/api/articles", { headers:{ accept:"application/json" }, cache:"no-store" });
-    if (!response.ok) return;
+    if (!response.ok) throw new Error("档案接口暂不可用");
     const data = await response.json();
-    if (data.articles?.length) articles.length = 0;
+    publishedLoaded = true;
+    articles.length = 0;
     for (const row of data.articles || []) {
       if (articles.some((item) => item.id === row.id || item.url === row.source_url)) continue;
-      articles.unshift({
+      articles.push({
         id:row.id, category:row.category, label:`${categoryNames[row.category] || "机会资讯"} · ${row.source_name}${row.format === "video" ? " · 视频" : ""}`,
         title:row.title, cardTitle:row.card_title, summary:row.summary,
         source:`${row.author} · ${row.published_at ? row.published_at.slice(0, 10) : "日期未注明"}`,
@@ -493,84 +465,20 @@ async function loadPublishedArticles() {
       ? '访客可阅读最新 1 篇档案。<a href="/register.html">注册后阅读全部档案 ↗</a>'
       : '已登录读者账号，可阅读全部已发布档案。';
   } catch {
-    // 数据库未绑定时保留原有人工整理卡片。
+    renderPopularArticle(null);
+    const grid = $("article-grid");
+    grid.replaceChildren();
+    const notice = document.createElement("p");
+    notice.className = "article-empty";
+    notice.textContent = "档案暂时无法加载，请稍后刷新。";
+    grid.append(notice);
   }
 }
 
 function handlePopularArticleClick(event) {
   if (!popularArticle) return;
   event.preventDefault();
-  recordArticleClick(popularArticle);
   openArticleReader(popularArticle);
-}
-
-function renderArticleBlock(block, body, imageNumber) {
-  if (block.type === "atomic") {
-    if (block.image) {
-      const figure = document.createElement("figure");
-      figure.className = "reader-figure";
-      const image = document.createElement("img");
-      image.src = block.image;
-      image.alt = `原文配图 ${imageNumber}`;
-      image.loading = "lazy";
-      image.onerror = () => figure.remove();
-      const caption = document.createElement("figcaption");
-      caption.textContent = `原文配图 ${imageNumber}`;
-      figure.append(image, caption);
-      body.append(figure);
-      return imageNumber + 1;
-    }
-    if (block.markdown) {
-      const pre = document.createElement("pre");
-      pre.className = "reader-code";
-      const code = document.createElement("code");
-      code.textContent = block.markdown.replace(/^```\n?/, "").replace(/\n```$/, "");
-      pre.append(code);
-      body.append(pre);
-      return imageNumber;
-    }
-    if (block.emojiUrl) {
-      const emoji = document.createElement("img");
-      emoji.className = "reader-emoji";
-      emoji.src = block.emojiUrl;
-      emoji.alt = "🍀";
-      body.append(emoji);
-    }
-    return imageNumber;
-  }
-  if (!block.text) return imageNumber;
-  const tag = block.type === "header-one" ? "h3" : block.type === "header-two" ? "h4" : "p";
-  const node = document.createElement(tag);
-  node.className = block.type === "unordered-list-item" ? "reader-list-item" : "";
-  if (block.type === "unordered-list-item") node.append(document.createTextNode("• "));
-  const ranges = (block.inlineStyleRanges || []).map((range) => ({
-    start: range.offset,
-    end: range.offset + range.length,
-    style: range.style,
-  }));
-  if (!ranges.length) {
-    node.append(document.createTextNode(block.text));
-  } else {
-    const boundaries = new Set([0, block.text.length]);
-    for (const range of ranges) boundaries.add(range.start), boundaries.add(range.end);
-    const points = [...boundaries].sort((a, b) => a - b);
-    for (let i = 0; i < points.length - 1; i++) {
-      const start = points[i];
-      const end = points[i + 1];
-      const copy = document.createTextNode(block.text.slice(start, end));
-      const styles = ranges.filter((range) => range.start <= start && range.end >= end).map((range) => range.style);
-      let wrapped = copy;
-      for (const style of styles) {
-        const tagName = style === "Bold" ? "strong" : style === "Italic" ? "em" : "span";
-        const element = document.createElement(tagName);
-        element.append(wrapped);
-        wrapped = element;
-      }
-      node.append(wrapped);
-    }
-  }
-  body.append(node);
-  return imageNumber;
 }
 
 function readerMediaUrl(value) {
@@ -637,36 +545,11 @@ async function openArticleReader(article) {
   cover.alt = `${article.title}封面`;
   cover.onerror = () => { cover.hidden = true; };
   const source = $("reader-source");
-  source.href = article.articleType === "database" ? "#" : article.url;
+  source.href = "#";
   source.textContent = "查看原始来源 ↗";
-  source.hidden = article.articleType === "database";
+  source.hidden = true;
   if (!reader.open) reader.showModal();
   reader.querySelector(".article-reader-panel").scrollTop = 0;
-
-  if (article.articleType === "source") {
-    if (!article.content && article.contentUrl) {
-      try {
-        const response = await fetch(article.contentUrl, { cache:"no-store" });
-        if (response.ok) article.content = await response.json();
-      } catch { /* 下方显示可用的来源信息。 */ }
-    }
-    if (requestId !== readerRequest) return;
-    const content = article.content;
-    const authorId = content?.author?.id || article.authorId || article.source.split(" · ")[0];
-    const createdAt = content?.createdAt ? new Intl.DateTimeFormat("zh-CN", { timeZone:"UTC", year:"numeric", month:"2-digit", day:"2-digit" }).format(new Date(content.createdAt)) : article.source.split(" · ").at(-1);
-    $("reader-title").textContent = content?.title || article.title;
-    $("reader-meta").textContent = `${authorId} · ${createdAt}`;
-    $("reader-summary").textContent = content?.previewText || article.summary;
-    if (readerMediaUrl(content?.cover || "")) { cover.src = content.cover; cover.hidden = false; }
-    let imageNumber = 1;
-    for (const block of content?.blocks || []) imageNumber = renderArticleBlock(block, body, imageNumber);
-    if (!content?.blocks?.length) appendStoredBody("本站暂未收录这篇文章的全文。", body);
-    source.href = content?.sourceUrl || article.url;
-    source.textContent = `文章来源：${authorId}（X） ↗`;
-    source.hidden = false;
-    $("reader-note").textContent = content?.blocks?.length ? "授权转载 · 文章内容、配图和作者署名均来自原帖。" : "原文可由右侧链接查看。";
-    return;
-  }
 
   if (article.articleType === "database") {
     try {
@@ -674,6 +557,7 @@ async function openArticleReader(article) {
       if (!response.ok) throw new Error(response.status === 403 ? "这篇档案需要读者账号。请注册或登录后阅读。" : "文章暂时无法读取");
       const { article:record } = await response.json();
       if (requestId !== readerRequest) return;
+      recordArticleClick(article);
       $("reader-title").textContent = record.title;
       $("reader-meta").textContent = [record.author, record.published_at?.slice(0, 10)].filter(Boolean).join(" · ");
       $("reader-summary").textContent = record.summary;
@@ -720,9 +604,6 @@ async function openArticleReader(article) {
     return;
   }
 
-  appendStoredBody("本站目前仅收录这篇内容的导读，全文请查看原始来源。", body);
-  source.textContent = `信息来源：${article.source.split(" · ")[0]} ↗`;
-  $("reader-note").textContent = "本站导读 · 原始内容由来源网站发布。";
 }
 
 function closeArticleReader() {
@@ -731,21 +612,6 @@ function closeArticleReader() {
   if (!reader) return;
   if (typeof reader.close === "function") reader.close();
   else reader.removeAttribute("open");
-}
-
-async function loadArticleContent() {
-  const article = articles.find((item) => item.articleType === "source");
-  if (!article?.contentUrl) return;
-  try {
-    const response = await fetch(article.contentUrl, { headers:{ accept:"application/json" }, cache:"no-store" });
-    if (!response.ok) throw new Error(`文章内容读取失败：HTTP ${response.status}`);
-    article.content = await response.json();
-    article.title = article.content.title || article.title;
-    article.authorId = article.content.author?.id || article.authorId;
-    renderArticles(document.querySelector(".tab[aria-pressed=\"true\"]")?.dataset.filter || "all");
-  } catch (error) {
-    console.error("X 文章内容读取失败", error);
-  }
 }
 
 async function loadData() {
@@ -848,8 +714,7 @@ $("reset-plea-button").addEventListener("click", pleadForReset);
 renderArticles();
 loadAds();
 loadPublishedArticles();
-loadArticleContent();
-renderPopularArticle(articles.find((article) => article.featured) || articles[0]);
+renderPopularArticle(null);
 loadPopularArticle();
 loadData();
 window.setInterval(loadData, 15 * 60 * 1000);

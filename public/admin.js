@@ -24,10 +24,58 @@ let deleting = null;
 
 document.body.append($("editor"));
 
+function canCloseDialog(dialog) {
+  if (dialog.id === "approve-dialog") return !$("approve-confirm").disabled;
+  if (dialog.id === "delete-dialog") return !$("delete-confirm").disabled;
+  return true;
+}
+
+for (const dialog of document.querySelectorAll("dialog")) {
+  const content = dialog.querySelector(".dialog-content");
+  if (!content) continue;
+  const toolbar = document.createElement("div");
+  toolbar.className = "dialog-toolbar";
+  const close = document.createElement("button");
+  close.className = "dialog-pin-close";
+  close.type = "button";
+  close.textContent = "×";
+  close.setAttribute("aria-label", "关闭弹窗");
+  close.addEventListener("click", () => { if (canCloseDialog(dialog)) dialog.close(); });
+  toolbar.append(close);
+  content.prepend(toolbar);
+  dialog.addEventListener("click", (event) => { if (event.target === dialog && canCloseDialog(dialog)) dialog.close(); });
+  dialog.addEventListener("cancel", (event) => { if (!canCloseDialog(dialog)) event.preventDefault(); });
+}
+
 function status(id, message, error = false) {
   const node = $(id);
   node.textContent = message;
   node.classList.toggle("error", error);
+}
+
+function confirmAction({ badge, title, summary, detail, confirmText, tone = "publish" }) {
+  const dialog = $("action-dialog");
+  $("action-badge").textContent = badge;
+  $("action-title").textContent = title;
+  $("action-summary").textContent = summary;
+  $("action-detail").textContent = detail;
+  const confirm = $("action-confirm");
+  confirm.textContent = confirmText;
+  confirm.className = `button ${tone}`;
+  return new Promise((resolve) => {
+    let accepted = false;
+    const close = () => dialog.close();
+    const onConfirm = () => { accepted = true; close(); };
+    const onClose = () => {
+      confirm.removeEventListener("click", onConfirm);
+      $("action-cancel").removeEventListener("click", close);
+      resolve(accepted);
+    };
+    confirm.addEventListener("click", onConfirm);
+    $("action-cancel").addEventListener("click", close);
+    dialog.addEventListener("close", onClose, { once:true });
+    dialog.showModal();
+  });
 }
 
 async function api(path, options = {}) {
@@ -190,7 +238,7 @@ function renderList() {
     if (article.status === "published") {
       const archive = document.createElement("button"); archive.className = "button secondary"; archive.type = "button"; archive.textContent = "下架";
       archive.addEventListener("click", async () => {
-        if (!window.confirm(`确认下架“${article.card_title || article.title}”？`)) return;
+        if (!await confirmAction({ badge:"档案下架", title:"确认下架档案？", summary:`即将下架「${article.card_title || article.title}」。`, detail:"下架后读者无法继续访问；档案及历史版本仍会保留。", confirmText:"确认下架", tone:"danger" })) return;
         try { await api("/api/admin/review", { method:"POST", body:JSON.stringify({ id:article.id, revision:article.revision, action:"archive" }) }); await Promise.all([refreshList(), refreshReview(), refreshOverview()]); }
         catch (error) { status("import-status", error.message, true); }
       });
@@ -397,8 +445,8 @@ async function loadVersions() {
       const row = document.createElement("div"); row.className = "list-item";
       const label = document.createElement("span"); label.textContent = `第 ${version.revision} 版 · ${version.saved_at} · ${statusNames[version.article.status] || version.article.status}`;
       const button = document.createElement("button"); button.type = "button"; button.className = "button secondary"; button.textContent = "载入对照";
-      button.addEventListener("click", () => {
-        if (!window.confirm(`载入第 ${version.revision} 版到编辑器？尚未保存的表单改动会被覆盖。`)) return;
+      button.addEventListener("click", async () => {
+        if (!await confirmAction({ badge:"历史版本", title:`载入第 ${version.revision} 版？`, summary:"将该版本的内容载入当前编辑器。", detail:"尚未保存的表单改动会被覆盖；只有再次点击保存才会写入新版本。", confirmText:"确认载入" })) return;
         fill({ ...version.article, id:editingId, revision });
         status("save-status", `已载入第 ${version.revision} 版。保存后才会写入新版本。`);
       });
@@ -497,7 +545,6 @@ $("new-close").addEventListener("click", () => $("new-dialog").close());
 $("choose-link").addEventListener("click", () => { $("import-panel").hidden = false; $("new-choices").hidden = true; $("import-url").focus(); });
 $("manual").addEventListener("click", () => { $("new-dialog").close(); fill({ format:"article", category:"opportunity", rights:"licensed", status:"draft" }); status("save-status", "已打开空白录入表单。填写后保存并提交审核。"); });
 $("close-editor").addEventListener("click", () => $("editor").close());
-$("editor").addEventListener("click", (event) => { if (event.target === event.currentTarget) event.currentTarget.close(); });
 
 $("import").addEventListener("click", async () => {
   const url = $("import-url").value.trim();
@@ -557,8 +604,6 @@ $("review-approve").addEventListener("click", () => {
 });
 $("approve-cancel").addEventListener("click", () => { if (!$("approve-confirm").disabled) $("approve-dialog").close(); });
 $("approve-confirm").addEventListener("click", () => submitReview("approve"));
-$("approve-dialog").addEventListener("click", (event) => { if (event.target === event.currentTarget && !$("approve-confirm").disabled) event.currentTarget.close(); });
-$("approve-dialog").addEventListener("cancel", (event) => { if ($("approve-confirm").disabled) event.preventDefault(); });
 $("review-reject").addEventListener("click", () => { $("reject-box").hidden = false; $("reject-reason").focus(); });
 $("reject-confirm").addEventListener("click", () => { const note = $("reject-reason").value.trim(); if (!note) return status("review-dialog-status", "请填写拒绝原因。", true); submitReview("reject", note); });
 
@@ -573,7 +618,7 @@ $("ad-form").addEventListener("submit", async (event) => {
   const ad = Object.fromEntries(new FormData(adForm));
   ad.slot = Number(ad.slot); ad.active = adForm.elements.namedItem("active").checked;
   for (const name of ["starts_at","ends_at"]) ad[name] = ad[name] ? new Date(ad[name]).toISOString().slice(0,16) : "";
-  if (ad.active && !window.confirm(`确认启用广告位 ${ad.slot}，向访客展示“${ad.title}”并链接到 ${ad.target_url}？`)) return;
+  if (ad.active && !await confirmAction({ badge:"广告启用", title:`确认启用广告位 ${ad.slot}？`, summary:`将向访客展示「${ad.title}」。`, detail:`推广链接：${ad.target_url}`, confirmText:"确认启用" })) return;
   const button = adForm.querySelector("button[type=submit]"); button.disabled = true;
   try { await api("/api/admin/ads", { method:"PUT", body:JSON.stringify(ad) }); await refreshAds(); status("ad-status", `广告位 ${ad.slot} 已保存；首页刷新后生效。`); }
   catch (error) { status("ad-status", error.message, true); }

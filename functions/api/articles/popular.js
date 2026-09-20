@@ -3,7 +3,7 @@ function json(body, status = 200) {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "cache-control": status === 200 ? "public, max-age=3600, s-maxage=3600" : "no-store",
+      "cache-control": "no-store",
       "x-content-type-options": "nosniff",
     },
   });
@@ -13,17 +13,23 @@ export async function onRequestGet({ env }) {
   try {
     if (!env?.DB) return json({ error:"analytics_unconfigured", article_id:null, clicks:0 }, 503);
     const row = await env.DB.prepare(`
-      SELECT article_id, clicks, updated_at
-      FROM article_clicks
-      WHERE article_id IN ('stripe-ai-pricing','xilo-codex-editing','cloudflare-workers-ai','zapier-ai-automation')
-        OR EXISTS (SELECT 1 FROM articles WHERE articles.id = article_clicks.article_id AND articles.status = 'published')
-      ORDER BY clicks DESC, updated_at DESC, article_id ASC
+      SELECT a.id AS article_id, a.source_name, a.author, a.published_at, a.format,
+        a.category, a.title, a.card_title, a.summary, a.cover_url,
+        COALESCE(c.clicks, 0) AS clicks
+      FROM articles a LEFT JOIN article_clicks c ON c.article_id = a.id
+      WHERE a.status = 'published'
+      ORDER BY COALESCE(c.clicks, 0) DESC,
+        COALESCE((SELECT MAX(created_at) FROM review_events WHERE article_id=a.id AND action='approve'), a.created_at) DESC,
+        a.id ASC
       LIMIT 1
     `).first();
     const computedAt = new Date().toISOString();
     return json({
       article_id: row?.article_id || null,
-      clicks: Number.isSafeInteger(row?.clicks) ? row.clicks : 0,
+      article: row ? { id:row.article_id, source_name:row.source_name, author:row.author, published_at:row.published_at,
+        format:row.format, category:row.category, title:row.title, card_title:row.card_title,
+        summary:row.summary, cover_url:row.cover_url } : null,
+      clicks: Number(row?.clicks || 0),
       computed_at: computedAt,
       next_refresh_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     });

@@ -103,6 +103,27 @@ test("后台鉴权、草稿隔离、发布、下架和热度筛选", async () =>
   assert.equal(metrics.total_reads, 1);
 });
 
+test("长卡从首篇已发布档案开始，随后按点击量更换；空库和下架内容不参与", async () => {
+  const env = environment();
+  assert.equal((await (await popular({ env })).json()).article_id, null);
+  const first = await create({ request:request("/api/admin/articles", "POST", sample, true), env });
+  const firstId = (await first.json()).id;
+  assert.equal((await (await popular({ env })).json()).article_id, null);
+  await update({ request:request("/api/admin/articles", "PUT", { ...sample, id:firstId, status:"published" }, true), env });
+  const initial = await (await popular({ env })).json();
+  assert.equal(initial.article_id, firstId);
+  assert.equal(initial.clicks, 0);
+  assert.equal(initial.article.card_title, sample.card_title);
+  const secondSample = { ...sample, source_url:"https://example.org/second", title:"第二篇", card_title:"第二篇卡片" };
+  const second = await create({ request:request("/api/admin/articles", "POST", secondSample, true), env });
+  const secondId = (await second.json()).id;
+  await update({ request:request("/api/admin/articles", "PUT", { ...secondSample, id:secondId, status:"published" }, true), env });
+  await click({ request:request("/api/articles/click", "POST", { article_id:secondId }), env });
+  assert.equal((await (await popular({ env })).json()).article_id, secondId);
+  await update({ request:request("/api/admin/articles", "PUT", { ...secondSample, id:secondId, status:"archived" }, true), env });
+  assert.equal((await (await popular({ env })).json()).article_id, firstId);
+});
+
 test("内容管理分页、审核拒绝与通过、可恢复删除", async () => {
   const env = environment();
   const first = await create({ request:request("/api/admin/articles", "POST", { ...sample, status:"review" }, true), env });
