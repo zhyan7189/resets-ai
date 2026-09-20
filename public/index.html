@@ -10,6 +10,7 @@
       @font-face { font-family: GenSen; src: url("/fonts/GenSenRounded-Heavy-UI.woff2"); font-weight: 800; font-display:swap; }
       :root { --paper:#fff4dd; --ink:#26201a; --muted:#6a6052; --card:#fffdf7; --sun:#ffd84d; --orange:#ff5c2b; --rose:#ffb9cc; --sky:#a5dcff; --mint:#c8e9c2; }
       * { box-sizing:border-box; }
+      [hidden] { display:none !important; }
       html { scroll-behavior:smooth; }
       body { margin:0; color:var(--ink); background:var(--paper); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
       button,a { font:inherit; }
@@ -28,12 +29,14 @@
       .signal i { width:9px; height:9px; border:2px solid var(--ink); border-radius:50%; background:#75d787; }
       .reset-card { position:relative; overflow:hidden; background:var(--card); border:3px solid var(--ink); border-radius:22px; box-shadow:7px 7px 0 var(--ink); padding:18px 24px 16px; background-image:radial-gradient(#e8e3d7 1.5px,transparent 1.5px); background-size:19px 19px; }
       .eyebrow { margin:0 0 6px; font-size:13px; font-weight:800; letter-spacing:.13em; color:#5c5347; }
-      .reset-main { display:grid; grid-template-columns:minmax(0,.9fr) minmax(420px,1.3fr); grid-template-areas:"figure scene"; align-items:center; gap:8px clamp(16px,2.5vw,28px); }
-      .reset-number { grid-area:figure; justify-self:start; display:inline-block; transform:rotate(-1deg); background:var(--sun); border-radius:14px; padding:3px 13px 5px; font:800 clamp(48px,7vw,60px)/1.12 GenSen,Baloo,sans-serif; letter-spacing:-3px; }
-      .reset-side { grid-area:scene; min-width:0; display:block; padding:0; }
+      .reset-main { display:grid; grid-template-columns:minmax(0,.88fr) minmax(0,1.12fr); align-items:start; gap:24px; }
+      .reset-details { min-width:0; text-align:center; }
+      .reset-number { display:block; width:100%; background:var(--sun); border-radius:14px; padding:3px 13px 5px; font:800 clamp(48px,6vw,60px)/1.12 GenSen,Baloo,sans-serif; letter-spacing:-3px; }
+      .reset-side { min-width:0; padding-left:22px; border-left:2px solid var(--ink); }
       .reset-date { margin:8px 0 3px; font:600 13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; }
-      .reset-quote { margin:0; color:#5d544a; font-size:15px; }
-      .reset-actions { display:flex; gap:10px; align-items:center; margin-top:10px; }
+      .reset-quote { margin:10px auto 0; color:#5d544a; font-size:15px; line-height:1.55; }
+      .reset-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:9px; align-items:center; margin-top:24px; }
+      .reset-details .btn { padding:9px 11px; font-size:12px; }
       .btn { border:2px solid var(--ink); border-radius:999px; padding:10px 17px; text-decoration:none; font-size:13px; font-weight:800; box-shadow:3px 3px 0 var(--ink); }
       .btn-primary { background:var(--sun); }
       .btn-secondary { background:var(--card); }
@@ -60,11 +63,18 @@
       .feature p { margin:0; font-size:13px; line-height:1.6; color:#3f4d55; }
       .popular-source { display:block; margin-top:16px; color:var(--muted); font:700 11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; }
       .feature-art { display:flex; align-items:center; justify-content:center; transform:rotate(5deg); background:var(--sun); border:3px solid var(--ink); border-radius:17px; box-shadow:4px 4px 0 var(--ink); font:800 63px GenSen,sans-serif; }
-      .tabs { display:flex; gap:8px; margin:28px 0 14px; }
+      .feature-art img { width:100%; height:150px; object-fit:cover; border-radius:13px; }
+      .article-tools { display:flex; align-items:center; justify-content:space-between; gap:14px; margin:28px 0 14px; }
+      .tabs { display:flex; flex-wrap:wrap; gap:8px; margin:0; }
       .tab { display:inline-block; border:2px solid var(--ink); border-radius:999px; padding:7px 13px; background:#fff; font-size:12px; font-weight:800; }
-      .tab.active { background:var(--ink); color:#fff; }
+      .tab[aria-pressed="true"] { background:var(--ink); color:#fff; }
+      .article-search { width:175px; min-width:0; border:2px solid var(--ink); border-radius:999px; padding:8px 12px; background:#fff; font-size:12px; }
+      .article-empty { grid-column:1/-1; padding:18px; color:var(--muted); }
       .article-grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
       .article { display:flex; flex-direction:column; min-height:188px; border:2px solid var(--ink); border-radius:15px; padding:19px; background:var(--card); box-shadow:4px 4px 0 var(--ink); }
+      .article-media { position:relative; display:block; height:150px; overflow:hidden; margin:-8px -8px 15px; border:2px solid var(--ink); border-radius:10px; background:#d7e6ff; }
+      .article-media img { width:100%; height:100%; object-fit:cover; }
+      .article-play { position:absolute; inset:50% auto auto 50%; transform:translate(-50%,-50%); display:grid; place-items:center; width:45px; height:45px; border:2px solid var(--ink); border-radius:50%; background:#fafdff; font-size:17px; }
       .article.rose { background:#fff0f3; }
       .article.mint { background:#eff8ec; }
       .article-kicker { color:#6b5a49; font-size:11px; font-weight:800; letter-spacing:.08em; }
@@ -76,6 +86,8 @@
       .rail.left { left:20px; }
       .rail.right { right:20px; }
       .ad { min-height:148px; display:flex; flex-direction:column; padding:14px; border:2.5px solid var(--ink); border-radius:14px; box-shadow:4px 4px 0 var(--ink); background:var(--rose); transform:rotate(-1deg); }
+      a.ad { color:inherit; text-decoration:none; }
+      a.ad:hover { translate:0 -3px; }
       .rail.right .ad { background:var(--mint); transform:rotate(1deg); }
       .ad:nth-child(2) { background:var(--sky); transform:rotate(1deg); }
       .rail.right .ad:nth-child(2) { background:var(--sun); transform:rotate(-1deg); }
@@ -97,6 +109,11 @@
       .rail.right .ad { background:#cbf4ea; }
       .rail.right .ad:nth-child(2) { background:#b8caff; }
       .history-legend { display:flex; align-items:center; gap:15px; margin-left:auto; color:#6a6b72; font-size:12px; white-space:nowrap; }
+      .embedded-history-head { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:0 0 14px; }
+      .embedded-history-head h2 { font-size:18px; white-space:nowrap; }
+      .embedded-history-head .history-legend { gap:8px; margin-left:0; font-size:10px; }
+      .reset-side .heatmap { max-width:100%; }
+      .reset-side .history-note { margin:9px 0 0; font-size:10px; line-height:1.5; }
       .history-legend span { display:flex; align-items:center; gap:6px; }
       .history-legend i { width:12px; height:12px; border:2px solid #25262c; border-radius:4px; background:#ff5c2b; }
       .history-legend .banked { background:#ffb88f; }
@@ -105,7 +122,15 @@
       .heatmap { display:flex; gap:8px; max-width:100%; }
       .weekdays { flex:none; width:42px; display:grid; grid-template-rows:20px repeat(7,22px); row-gap:4px; color:#72727c; font-size:11px; align-items:center; }
       .weekdays span:nth-child(2),.weekdays span:nth-child(4),.weekdays span:nth-child(6) { white-space:nowrap; }
-      .heat-scroll { scrollbar-width:thin; direction:rtl; flex:1; max-width:100%; margin:-4px; padding:4px 4px 16px; overflow:auto hidden; }
+      .heat-scroll { scrollbar-width:none; direction:ltr; flex:1; max-width:100%; margin:-4px; padding:4px; overflow:auto hidden; }
+      .heat-scroll::-webkit-scrollbar { display:none; }
+      .history-scroll-control { display:flex; align-items:center; gap:9px; margin:10px 0 0 50px; color:var(--muted); font-size:10px; font-weight:800; white-space:nowrap; }
+      .history-slider { flex:1; width:100%; min-width:0; height:16px; margin:0; appearance:none; -webkit-appearance:none; background:transparent; cursor:pointer; }
+      .history-slider::-webkit-slider-runnable-track { height:7px; border-radius:999px; background:#9ca9c3; }
+      .history-slider::-moz-range-track { height:7px; border-radius:999px; background:#9ca9c3; }
+      .history-slider::-webkit-slider-thumb { width:23px; height:17px; margin-top:-5px; appearance:none; -webkit-appearance:none; border:2px solid var(--ink); border-radius:6px; background:var(--sun); box-shadow:2px 2px 0 var(--ink); }
+      .history-slider::-moz-range-thumb { width:19px; height:13px; border:2px solid var(--ink); border-radius:6px; background:var(--sun); box-shadow:2px 2px 0 var(--ink); }
+      .history-slider:focus-visible { outline:2px solid var(--orange); outline-offset:3px; }
       .months { height:20px; position:relative; color:#72727c; font-size:11px; line-height:20px; }
       .months span { position:absolute; top:0; white-space:nowrap; }
       .heat-cells { direction:ltr; display:grid; grid-auto-flow:column; grid-template-columns:repeat(var(--history-weeks,1),minmax(22px,1fr)); grid-template-rows:repeat(7,22px); gap:4px; width:100%; min-width:max-content; }
@@ -156,12 +181,14 @@
       .reader-figure { margin:18px 0 0; }
       .reader-figure img { display:block; width:100%; max-height:520px; object-fit:contain; border:2px solid var(--ink); border-radius:10px; background:#f3f6ff; }
       .reader-figure figcaption { margin-top:5px; color:var(--muted); font-size:10px; text-align:center; }
+      .reader-video { display:block; width:100%; aspect-ratio:16/9; border:2px solid var(--ink); border-radius:10px; }
       .reader-emoji { width:22px; height:22px; vertical-align:middle; }
       .reader-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:22px; padding-top:16px; border-top:2px solid var(--ink); }
       .reader-source { color:var(--ink); font-size:12px; font-weight:800; text-decoration:none; }
       .reader-source:hover { text-decoration:underline; }
       .reader-note { margin:0; color:var(--muted); font-size:11px; line-height:1.5; }
       .status-message { margin:9px 0 0; color:var(--muted); font-size:11px; min-height:17px; }
+      .status-message:empty { display:none; }
       .reset-plea { flex:none; align-items:center; margin:0; display:flex; position:relative; }
       .reset-plea-count-slot { flex-shrink:0; display:inline-grid; }
       .reset-plea-count-sizer { visibility:hidden; }
@@ -180,62 +207,26 @@
       .reset-plea-burst--avatar { width:var(--burst-size,32px); height:var(--burst-size,32px); border:2px solid var(--ink); background:var(--sun); box-shadow:2px 2px 0 var(--ink); border-radius:50%; padding:2px; display:grid; overflow:hidden; }
       .reset-plea-burst-avatar { object-fit:cover; border-radius:50%; width:100%; height:100%; }
       @keyframes reset-plea-burst { 0% { opacity:1; transform:translate(-50%,-50%) rotate(var(--burst-rotate,0deg)) scale(.8); } 65% { opacity:1; } to { opacity:0; transform:translate(calc(-50% + var(--burst-x,0px)),calc(-50% + var(--burst-y,-70px))) rotate(var(--burst-rotate,0deg)) scale(1.08); } }
-      .workbench { position:relative; min-height:194px; display:flex; align-items:center; justify-content:center; }
-      .workbench-scene { position:relative; width:min(100%,480px); min-height:194px; padding-top:6px; display:flex; align-items:flex-start; justify-content:center; }
-      .coder-illustration { width:min(100%,470px); height:160px; overflow:visible; transform:translateY(10px); }
-      .coder-shadow { fill:#b7c9ea; opacity:.7; }
-      .coder-monitor,.coder-monitor-side { fill:#d7e6ff; stroke:var(--ink); stroke-width:3; }
-      .coder-monitor-screen { fill:#fafdff; stroke:var(--ink); stroke-width:2; }
-      .coder-monitor-screen--dim { fill:#e8efff; }
-      .coder-code { fill:none; stroke:#6754dc; stroke-width:3; stroke-linecap:round; }
-      .coder-code--mint { stroke:#52cdbd; }
-      .coder-desk { fill:#80e8d8; stroke:var(--ink); stroke-width:3; }
-      .coder-keyboard { fill:#fafdff; stroke:var(--ink); stroke-width:2; }
-      .coder-key { fill:#6754dc; opacity:.55; }
-      .coder-mug { fill:#ffb88f; stroke:var(--ink); stroke-width:2.5; }
-      .coder-chair { fill:#e3d9ff; stroke:var(--ink); stroke-width:3; }
-      .coder-body { fill:#6754dc; stroke:var(--ink); stroke-width:3; }
-      .coder-shirt { fill:#80e8d8; stroke:var(--ink); stroke-width:3; }
-      .coder-hair { fill:#192753; stroke:var(--ink); stroke-width:3; }
-      .coder-arm { fill:none; stroke:#192753; stroke-width:9; stroke-linecap:round; }
-      .coder-hand { fill:#ffb88f; stroke:var(--ink); stroke-width:2.5; }
-      .coder-pain-mark { fill:#ff5c5c; font:800 22px GenSen,Baloo,sans-serif; opacity:0; transform-origin:274px 102px; }
-      .pinch-hand { opacity:0; transform:translateX(28px) scale(.75); transform-origin:405px 115px; }
-      .pinch-hand path { fill:#ffb88f; stroke:var(--ink); stroke-width:3; stroke-linejoin:round; }
-      .coder-programmer { transform-origin:208px 136px; animation:coder-type 2.2s ease-in-out infinite; }
-      .coder-code { animation:code-cursor 1.8s steps(2,end) infinite; }
-      .coder-sweat { opacity:.8; animation:sweat-fall 4.8s ease-in-out infinite; }
-      .coder-wipe-arm { transform-origin:260px 92px; animation:coder-wipe 4.8s ease-in-out infinite; }
-      .workbench-scene.is-pinched .coder-programmer { animation:coder-pain .58s cubic-bezier(.34,1.56,.64,1); }
-      .workbench-scene.is-pinched .pinch-hand { animation:pinch-waist .58s cubic-bezier(.34,1.56,.64,1) forwards; }
-      .workbench-scene.is-pinched .coder-pain-mark { animation:pain-mark .58s ease-out forwards; }
-      @keyframes coder-pain { 0%,100% { transform:translateX(0) rotate(0); } 22% { transform:translateX(-6px) rotate(-5deg); } 45% { transform:translateX(6px) rotate(5deg); } 68% { transform:translateX(-3px) rotate(-2deg); } }
-      @keyframes coder-type { 0%,100% { transform:translateY(0) rotate(0); } 45% { transform:translateY(1px) rotate(-.8deg); } 55% { transform:translateY(0) rotate(.6deg); } }
-      @keyframes code-cursor { 0%,45% { opacity:1; } 46%,100% { opacity:.42; } }
-      @keyframes sweat-fall { 0%,55%,100% { opacity:0; transform:translateY(-3px); } 62%,78% { opacity:.9; transform:translateY(0); } 86% { opacity:0; transform:translateY(6px); } }
-      @keyframes coder-wipe { 0%,58%,100% { opacity:0; transform:translate(0,0) rotate(0); } 64% { opacity:1; transform:translate(-2px,-3px) rotate(-10deg); } 72% { opacity:1; transform:translate(-7px,-30px) rotate(-28deg); } 80% { opacity:1; transform:translate(-7px,-30px) rotate(-28deg); } 88% { opacity:0; transform:translate(0,0) rotate(0); } }
-      @keyframes pinch-waist { 0% { opacity:0; transform:translateX(28px) scale(.75) rotate(8deg); } 28% { opacity:1; transform:translateX(0) scale(1) rotate(0); } 55% { opacity:1; transform:translateX(3px) scale(.95) rotate(-4deg); } 100% { opacity:0; transform:translateX(28px) scale(.75) rotate(8deg); } }
-      @keyframes pain-mark { 0%,100% { opacity:0; transform:scale(.65) rotate(-10deg); } 30%,62% { opacity:1; transform:scale(1.1) rotate(8deg); } }
-      .reset-plea { position:absolute; left:50%; right:auto; bottom:0; z-index:3; transform:translateX(-50%); }
-      .reset-plea-button { min-height:42px; border-radius:12px; padding:8px 16px; gap:7px; font-size:14px; background:#ff6b5c; }
-      .reset-plea-button-emoji { font-size:18px; }
+      .reset-plea { position:relative; justify-content:center; margin-top:15px; z-index:3; }
+      .reset-plea-button { min-height:38px; border-radius:10px; padding:7px 12px; gap:6px; font-size:13px; background:#ff6b5c; }
+      .reset-plea-button-emoji { font-size:17px; }
       .reset-plea-button-label { white-space:nowrap; }
-      .reset-plea-count { font-size:13px; }
-      @media(max-width:700px) { .reset-main { grid-template-columns:1fr; grid-template-areas:"figure" "scene"; gap:8px; } .reset-number { justify-self:start; font-size:52px; } .workbench { min-height:184px; } .workbench-scene { min-height:184px; width:min(100%,430px); padding-top:4px; } .coder-illustration { width:min(100%,430px); height:145px; transform:translateY(8px); } .reset-plea { left:50%; right:auto; } }
+      .reset-plea-count { font-size:12px; }
+      @media(max-width:700px) { .reset-main { grid-template-columns:1fr; gap:20px; } .reset-side { border-left:0; border-top:2px solid var(--ink); padding:19px 0 0; } }
       @media(max-width:1230px) { .rail { display:none; } }
-      @media(prefers-reduced-motion:reduce) { .coder-programmer,.coder-code,.coder-sweat,.coder-wipe-arm { animation:none; } }
-      @media(max-width:700px) { .shell { width:min(100% - 28px,808px); padding-top:18px; } .brand { font-size:30px; } .brand-sub,.mast .nav-pill:nth-last-child(2),.signal { display:none; } .intro { margin:22px 0 15px; } .reset-card { padding:23px 20px; } .reset-number { font-size:58px; } .reset-main { align-items:center; gap:16px; } .reset-side { gap:12px; padding:0; } .heat-scroll { overflow-x:auto; } .history-row { grid-template-columns:78px 1fr 18px; gap:9px; padding:11px; } .feature { grid-template-columns:1fr; } .feature-art { min-height:105px; } .article-grid { grid-template-columns:1fr; } .cell-tooltip { padding:13px 16px 14px; } .cell-tooltip-date { font-size:15px; } .cell-tooltip-copy { font-size:13px; } }
+      @media(max-width:700px) { .shell { width:min(100% - 28px,808px); padding-top:18px; } .brand { font-size:30px; } .brand-sub,.mast .nav-pill:nth-last-child(2),.signal { display:none; } .intro { margin:22px 0 15px; } .reset-card { padding:23px 20px; } .reset-number { font-size:58px; } .reset-main { align-items:center; gap:16px; } .reset-side { padding:19px 0 0; } .heat-scroll { overflow-x:auto; } .history-row { grid-template-columns:78px 1fr 18px; gap:9px; padding:11px; } .feature { grid-template-columns:1fr; } .feature-art { min-height:105px; } .article-grid { grid-template-columns:1fr; } .cell-tooltip { padding:13px 16px 14px; } .cell-tooltip-date { font-size:15px; } .cell-tooltip-copy { font-size:13px; } }
+      @media(max-width:700px) { .article-tools { display:block; } .article-search { width:100%; margin-top:12px; } }
       @media(max-width:700px) { .article-reader-panel { padding:20px 17px 18px; border-radius:14px; } .reader-title { font-size:24px; } .reader-cover { max-height:210px; } .reader-footer { align-items:flex-start; flex-direction:column; } }
     </style>
   </head>
   <body>
     <aside class="rail left" aria-label="左侧固定广告">
-      <div class="ad"><span class="ad-label">广告位 · 01</span><span class="ad-icon">✦</span><strong>你的品牌<br />在这里亮相</strong><small>固定展示 · 推广合作示意</small></div>
-      <div class="ad"><span class="ad-label">广告位 · 02</span><span class="ad-icon">◈</span><strong>AI 工具<br />合作展示</strong><small>固定展示 · 推广合作示意</small></div>
+      <div class="ad" data-ad-slot="1"><span class="ad-label">广告位 · 01</span><span class="ad-icon">✦</span><strong>你的品牌<br />在这里亮相</strong><small>固定展示 · 推广合作示意</small></div>
+      <div class="ad" data-ad-slot="2"><span class="ad-label">广告位 · 02</span><span class="ad-icon">◈</span><strong>AI 工具<br />合作展示</strong><small>固定展示 · 推广合作示意</small></div>
     </aside>
     <aside class="rail right" aria-label="右侧固定广告">
-      <div class="ad"><span class="ad-label">广告位 · 03</span><span class="ad-icon">✳</span><strong>优质产品<br />推广展示</strong><small>固定展示 · 推广合作示意</small></div>
-      <div class="ad"><span class="ad-label">广告位 · 04</span><span class="ad-icon">↗</span><strong>成为本站<br />合作伙伴</strong><small>固定展示 · 推广合作示意</small></div>
+      <div class="ad" data-ad-slot="3"><span class="ad-label">广告位 · 03</span><span class="ad-icon">✳</span><strong>优质产品<br />推广展示</strong><small>固定展示 · 推广合作示意</small></div>
+      <div class="ad" data-ad-slot="4"><span class="ad-label">广告位 · 04</span><span class="ad-icon">↗</span><strong>成为本站<br />合作伙伴</strong><small>固定展示 · 推广合作示意</small></div>
     </aside>
     <div class="shell">
       <header class="mast">
@@ -249,21 +240,28 @@
         <div class="intro"><p class="intro-copy"><strong>关注 Codex 重置公告，</strong>也发现值得实践的 AI 机会。</p><span class="signal"><i></i>公开公告追踪中</span></div>
         <section class="reset-card" aria-label="最新重置公告">
           <p class="eyebrow">最近一次 CODEX 额度重置</p>
-          <div class="reset-main"><span class="reset-number" id="reset-relative">加载中</span><div class="reset-side"><div class="workbench"><div class="workbench-scene" id="workbench-scene"><svg class="coder-illustration" viewBox="0 0 430 170" role="img" aria-label="从浏览器用户视角看到正在疯狂写代码并冒汗的程序员"><ellipse class="coder-shadow" cx="214" cy="159" rx="198" ry="8"/><g class="coder-monitor-side"><rect x="5" y="20" width="102" height="68" rx="8"/><rect class="coder-monitor-screen coder-monitor-screen--dim" x="14" y="29" width="84" height="48" rx="3"/><path class="coder-code" d="M23 41h27M23 51h45M23 61h22"/><path class="coder-code coder-code--mint" d="M64 41h23M60 61h29"/></g><g class="coder-monitor"><rect x="107" y="8" width="177" height="91" rx="9"/><rect class="coder-monitor-screen" x="119" y="20" width="153" height="67" rx="4"/><path class="coder-code" d="M132 34h43M132 45h74M132 56h34M132 67h65M132 78h48"/><path class="coder-code coder-code--mint" d="M224 34h32M216 56h42M234 78h22"/><text x="224" y="48" fill="#6754dc" font-size="10" font-family="ui-monospace,monospace">while(true)</text></g><g class="coder-monitor-side"><rect x="284" y="20" width="141" height="68" rx="8"/><rect class="coder-monitor-screen coder-monitor-screen--dim" x="296" y="29" width="117" height="48" rx="3"/><path class="coder-code" d="M305 41h31M305 51h61M305 61h43"/><path class="coder-code coder-code--mint" d="M361 41h39M362 61h34"/></g><path class="coder-desk" d="M5 112h420l-8 12H13z"/><path d="M26 124v31M404 124v31" fill="none" stroke="var(--ink)" stroke-width="4" stroke-linecap="round"/><path d="M104 102v10M323 101v11" fill="none" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/><path class="coder-keyboard" d="M177 108h119l-9 15H186z"/><path class="coder-key" d="M190 112h10v3h-10zM205 112h10v3h-10zM220 112h10v3h-10zM235 112h10v3h-10zM250 112h10v3h-10zM265 112h10v3h-10zM198 118h30v3h-30zM233 118h30v3h-30z"/><ellipse class="coder-mug" cx="345" cy="103" rx="12" ry="9"/><path d="M356 102c9-3 10 8 1 9" fill="none" stroke="var(--ink)" stroke-width="2.5"/><g class="coder-chair"><path d="M261 75h59v70h-59z"/><path d="M251 141h79v10h-79z"/></g><g class="coder-programmer"><path class="coder-body" d="M199 84c22-13 57-12 75 3l17 32h-107l7-25c2-5 4-8 8-10z"/><path class="coder-shirt" d="M207 86c14-7 35-7 48 1l13 32h-85l7-24c2-4 8-7 17-9z"/><ellipse class="coder-hair" cx="239" cy="62" rx="26" ry="24"/><path class="coder-hair" d="M213 62c5-23 41-33 58-7-16-7-39-1-58 7z"/><path class="coder-arm" d="M214 96Q201 106 188 113M264 96Q280 106 298 113"/><ellipse class="coder-hand" cx="183" cy="114" rx="8" ry="5"/><ellipse class="coder-hand" cx="303" cy="114" rx="8" ry="5"/><path class="coder-arm coder-wipe-arm" d="M265 94Q281 77 260 56"/><ellipse class="coder-hand coder-wipe-arm" cx="260" cy="55" rx="8" ry="5"/><text class="coder-pain-mark" x="278" y="88">哎!</text></g><g class="coder-sweat" aria-hidden="true"><path d="M273 34c7 9 7 14 0 17-7-3-7-8 0-17z" fill="#52cdbd" stroke="var(--ink)" stroke-width="2"/><path d="M291 45c6 8 6 12 0 15-6-3-6-7 0-15z" fill="#52cdbd" stroke="var(--ink)" stroke-width="2"/><path d="M305 58c5 7 5 10 0 13-5-3-5-6 0-13z" fill="#52cdbd" stroke="var(--ink)" stroke-width="2"/></g><g class="pinch-hand" aria-hidden="true"><path d="M419 89c-11-2-21 4-27 14l-11 18 10 6 13-17-1 17 10 2 4-20 9 14 9-6-12-20c-2-3 1-6-4-8z"/></g></svg><section class="reset-plea" id="reset-plea" data-mode="beg" aria-label="快重置"><div class="reset-plea-action"><button class="reset-plea-button" id="reset-plea-button" type="button" aria-label="快重置" title="快重置"><span class="reset-plea-button-emoji" aria-hidden="true">⚡</span><span class="reset-plea-button-label" id="reset-plea-label">快重置</span><span class="reset-plea-count-slot"><span class="reset-plea-count reset-plea-count-sizer" id="reset-plea-count-sizer" aria-hidden="true">1,201,923</span><span class="reset-plea-count" id="reset-plea-count" role="status" aria-live="polite" aria-atomic="true" aria-label="互动次数暂不可用">—</span></span></button><span class="reset-plea-bursts" id="reset-plea-bursts" aria-hidden="true"></span></div></section></div></div></div></div>
-          <p class="reset-date" id="reset-date">正在读取公开公告…</p>
-          <p class="reset-quote" id="reset-quote">数据来自 codex-resets.com</p>
-          <div class="reset-actions"><button class="btn btn-primary" id="notify-button" type="button">♧ 开启浏览器提醒</button><a class="btn btn-secondary" id="source-link" href="https://codex-resets.com/" target="_blank" rel="noopener noreferrer">查看原始公告 ↗</a></div>
-          <p class="status-message" id="status-message" role="status"></p>
-        </section>
-        <section class="section" id="history">
-          <div class="section-head"><div><h2>Codex 重置历史</h2></div><div class="history-legend"><span><i></i>常规</span><span><i class="banked"></i>备用</span><span><i class="empty"></i>未重置</span></div></div>
-          <div class="history-card"><div class="heatmap"><div class="weekdays"><span></span><span>周一</span><span></span><span>周三</span><span></span><span>周五</span><span></span></div><div class="heat-scroll"><div class="months" id="months"></div><div class="heat-cells" id="heat-cells" aria-label="Codex 重置历史日历"></div></div></div><p class="history-note" id="history-note">正在读取原站历史记录…</p></div>
+          <div class="reset-main">
+            <div class="reset-details">
+              <span class="reset-number" id="reset-relative">加载中</span>
+              <p class="reset-date" id="reset-date">正在读取公开公告…</p>
+              <p class="reset-quote" id="reset-quote">数据来自 codex-resets.com</p>
+              <div class="reset-actions"><button class="btn btn-primary" id="notify-button" type="button">♧ 开启浏览器提醒</button><a class="btn btn-secondary" id="source-link" href="https://codex-resets.com/" target="_blank" rel="noopener noreferrer">查看原始公告 ↗</a></div>
+              <section class="reset-plea" id="reset-plea" data-mode="beg" aria-label="快重置"><div class="reset-plea-action"><button class="reset-plea-button" id="reset-plea-button" type="button" aria-label="快重置" title="快重置"><span class="reset-plea-button-emoji" aria-hidden="true">⚡</span><span class="reset-plea-button-label" id="reset-plea-label">快重置</span><span class="reset-plea-count-slot"><span class="reset-plea-count reset-plea-count-sizer" id="reset-plea-count-sizer" aria-hidden="true">1,201,923</span><span class="reset-plea-count" id="reset-plea-count" role="status" aria-live="polite" aria-atomic="true" aria-label="互动次数暂不可用">—</span></span></button><span class="reset-plea-bursts" id="reset-plea-bursts" aria-hidden="true"></span></div></section>
+              <p class="status-message" id="status-message" role="status"></p>
+            </div>
+            <div class="reset-side" id="history">
+              <div class="embedded-history-head"><h2>Codex 重置历史</h2><div class="history-legend"><span><i></i>常规</span><span><i class="banked"></i>备用</span><span><i class="empty"></i>未重置</span></div></div>
+              <div class="heatmap"><div class="weekdays"><span></span><span>周一</span><span></span><span>周三</span><span></span><span>周五</span><span></span></div><div class="heat-scroll"><div class="months" id="months"></div><div class="heat-cells" id="heat-cells" aria-label="Codex 重置历史日历"></div></div></div>
+              <div class="history-scroll-control"><span>较早</span><input class="history-slider" id="history-slider" type="range" min="0" max="1000" value="1000" aria-label="滑动查看重置历史" /><span>最近</span></div>
+              <p class="history-note" id="history-note">正在读取原站历史记录…</p>
+            </div>
+          </div>
         </section>
         <div class="divider"><span>从重置消息，走向下一次机会</span></div>
         <section id="news">
           <div class="content-intro"><div><h2>AI 赚钱情报</h2><p>筛选值得关注的资讯，整理能照着做的教程。</p></div><span class="demo">人工整理 · 原文可查</span></div>
           <a class="feature" id="popular-article" href="#news" aria-label="正在读取热度榜首文章"><div><span class="tag" id="popular-label">热度榜首 · 正在读取</span><h3 id="popular-title">正在读取热度最高的文章…</h3><p id="popular-summary">每小时根据文章点击量更新。</p><span class="popular-source" id="popular-source"></span></div><div class="feature-art" id="popular-art">热度 #1</div></a>
-          <div class="tabs" role="group" aria-label="内容分类"><button class="tab" type="button" data-filter="all" aria-pressed="true">全部内容</button><button class="tab" type="button" data-filter="opportunity" aria-pressed="false">机会资讯</button><button class="tab" type="button" data-filter="tutorial" aria-pressed="false">实操教程</button><button class="tab" type="button" data-filter="tools" aria-pressed="false">工具观察</button></div>
+          <div class="article-tools"><div class="tabs" role="group" aria-label="内容分类"><button class="tab" type="button" data-filter="all" aria-pressed="true">全部内容</button><button class="tab" type="button" data-filter="opportunity" aria-pressed="false">机会资讯</button><button class="tab" type="button" data-filter="tutorial" aria-pressed="false">实操教程</button><button class="tab" type="button" data-filter="tools" aria-pressed="false">工具观察</button><button class="tab" type="button" data-filter="case" aria-pressed="false">创业案例</button><button class="tab" type="button" data-filter="pitfall" aria-pressed="false">避坑经验</button></div><input class="article-search" id="article-search" type="search" placeholder="搜索文章" aria-label="搜索文章" /></div>
           <div class="article-grid" id="article-grid"></div>
         </section>
       </main>
@@ -275,7 +273,7 @@
         <img class="reader-cover" id="reader-cover" alt="" loading="lazy" />
         <p class="reader-summary" id="reader-summary"></p>
         <div class="reader-body" id="reader-body"></div>
-        <div class="reader-footer"><p class="reader-note">授权转载 · 文章内容、配图和作者署名均来自原帖。</p><a class="reader-source" id="reader-source" href="#" target="_blank" rel="noopener noreferrer"></a></div>
+        <div class="reader-footer"><p class="reader-note" id="reader-note"></p><a class="reader-source" id="reader-source" href="#" target="_blank" rel="noopener noreferrer"></a></div>
       </article>
     </dialog>
     <script type="module" src="/app.js"></script>

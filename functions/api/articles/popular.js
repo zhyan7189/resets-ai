@@ -15,6 +15,8 @@ export async function onRequestGet({ env }) {
     const row = await env.DB.prepare(`
       SELECT article_id, clicks, updated_at
       FROM article_clicks
+      WHERE article_id IN ('stripe-ai-pricing','xilo-codex-editing','cloudflare-workers-ai','zapier-ai-automation')
+        OR EXISTS (SELECT 1 FROM articles WHERE articles.id = article_clicks.article_id AND articles.status = 'published')
       ORDER BY clicks DESC, updated_at DESC, article_id ASC
       LIMIT 1
     `).first();

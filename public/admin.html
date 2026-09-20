@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>内容控制台 · Resets AI</title>
+  <style>
+    @font-face { font-family:GenSen; src:url("./fonts/GenSenRounded-Heavy-UI.woff2"); font-weight:800; font-display:swap; }
+    :root { --ink:#192753; --muted:#536381; --paper:#eaf2ff; --surface:#fafdff; --mint:#80e8d8; --violet:#6754dc; --line:#c8d2e8; --red:#af3450; }
+    * { box-sizing:border-box; }
+    [hidden] { display:none!important; }
+    body { margin:0; color:var(--ink); background:var(--paper); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+    button,input,select,textarea { font:inherit; }
+    button { cursor:pointer; }
+    a { color:inherit; }
+    h1,h2,h3,p { margin:0; }
+    h1,h2,h3 { font-family:GenSen,sans-serif; }
+    .layout { min-height:100vh; display:grid; grid-template-columns:220px minmax(0,1fr); }
+    .sidebar { position:sticky; top:0; height:100vh; overflow-y:auto; padding:26px 18px; background:#dfe9ff; border-right:3px solid var(--ink); }
+    .logo { font:800 28px/1 GenSen,sans-serif; }
+    .logo small { display:block; margin-top:9px; color:var(--muted); font:700 11px/1.4 sans-serif; letter-spacing:.1em; }
+    .nav-group { margin-top:34px; }
+    .nav-label { margin:0 12px 9px; color:var(--muted); font-size:11px; font-weight:800; letter-spacing:.12em; }
+    .nav-link { display:flex; align-items:center; gap:10px; min-height:40px; margin:3px 0; padding:9px 12px; border:2px solid transparent; border-radius:10px; font-size:13px; font-weight:800; text-decoration:none; }
+    .nav-link:hover,.nav-link:focus-visible { background:white; border-color:var(--ink); }
+    .nav-link.active { background:var(--mint); border-color:var(--ink); box-shadow:3px 3px 0 var(--ink); }
+    .nav-link span { width:18px; text-align:center; }
+    .main { width:min(100%,1370px); padding:27px 32px 70px; margin:auto; min-width:0; }
+    .topbar,.panel-heading { display:flex; justify-content:space-between; align-items:center; gap:14px; }
+    .topbar h1 { font-size:30px; }
+    .topbar p,.panel-heading small,.help { color:var(--muted); font-size:12px; line-height:1.65; }
+    .topbar p { margin-top:6px; }
+    .pill { display:inline-block; padding:7px 11px; border:2px solid var(--ink); border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; }
+    .panel,.metric { background:var(--surface); border:2px solid var(--ink); border-radius:15px; box-shadow:4px 4px 0 var(--ink); }
+    .panel { padding:22px; margin-top:20px; scroll-margin-top:20px; }
+    .panel h2 { font-size:19px; }
+    .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:24px; }
+    .metric { min-height:94px; padding:16px 18px; }
+    .metric span { display:block; color:var(--muted); font-size:12px; font-weight:800; }
+    .metric strong { display:block; margin-top:7px; font:800 29px/1 GenSen,sans-serif; }
+    .workspace-grid { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(290px,.75fr); gap:18px; align-items:start; }
+    .row,.actions { display:flex; gap:10px; align-items:end; flex-wrap:wrap; }
+    .grow { flex:1; min-width:240px; }
+    label { display:block; font-size:12px; font-weight:800; }
+    label span { display:block; margin-bottom:6px; }
+    input,textarea,select { display:block; width:100%; margin-top:5px; padding:10px 12px; color:var(--ink); background:white; border:1.5px solid #8d9ab8; border-radius:9px; }
+    input[type=checkbox] { display:inline-block; width:auto; margin:0 8px 0 0; }
+    textarea { min-height:92px; resize:vertical; line-height:1.6; }
+    #body,#original-body { min-height:250px; }
+    .button { min-height:41px; padding:9px 14px; border:2px solid var(--ink); border-radius:9px; background:var(--mint); color:var(--ink); font-size:12px; font-weight:800; white-space:nowrap; box-shadow:3px 3px 0 var(--ink); }
+    .button.secondary { background:white; }
+    .button.publish { color:white; background:var(--violet); }
+    .button.danger { color:white; background:var(--red); }
+    .button:disabled { opacity:.5; cursor:wait; }
+    .notice { min-height:22px; margin-top:11px; font-size:12px; font-weight:800; }
+    .notice.error { color:var(--red); }
+    .preview-banner { margin-top:22px; padding:12px 16px; border:2px dashed var(--ink); border-radius:11px; background:#f2edff; font-size:12px; font-weight:800; line-height:1.6; }
+    .flow { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:18px; }
+    .flow-step { padding:10px; border:1.5px solid var(--line); border-radius:9px; background:#f1f5ff; color:var(--muted); font-size:11px; font-weight:800; }
+    .flow-step b { display:block; color:var(--violet); margin-bottom:5px; }
+    .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-top:16px; }
+    .full { grid-column:1/-1; }
+    .source-review { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
+    .source-review .help { display:block; margin-top:7px; }
+    .review-checks { display:grid; gap:8px; margin:17px 0; }
+    .review-checks div { display:flex; justify-content:space-between; gap:10px; padding-bottom:8px; border-bottom:1px solid var(--line); font-size:12px; }
+    .review-checks b { color:var(--muted); text-align:right; }
+    .preview { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:22px; }
+    .preview h3 { margin-bottom:9px; font-size:16px; }
+    .card-preview,.detail-preview { min-height:200px; padding:18px; border:2px solid var(--ink); border-radius:13px; overflow-wrap:anywhere; }
+    .card-preview { background:#f2edff; box-shadow:3px 3px 0 var(--ink); }
+    .card-preview img { display:block; width:100%; max-height:160px; object-fit:cover; border-radius:8px; margin-bottom:10px; }
+    .card-preview small { display:block; color:var(--muted); font-weight:800; }
+    .card-preview h3 { margin:12px 0 8px; }
+    .card-preview p,.detail-preview p { color:var(--muted); line-height:1.6; }
+    .card-preview small:last-child { margin-top:18px; }
+    .detail-preview { max-height:330px; overflow:auto; background:white; }
+    .detail-preview-body { margin:12px 0; }
+    .detail-preview-body > * { margin:0 0 12px; line-height:1.65; }
+    .detail-preview-body img { display:block; max-width:100%; max-height:230px; object-fit:contain; }
+    .detail-preview-body iframe,.detail-preview-body video { display:block; width:100%; aspect-ratio:16/9; border:0; border-radius:8px; }
+    .detail-preview-body figcaption { font-size:11px; color:var(--muted); }
+    .tabs { display:flex; flex-wrap:wrap; gap:7px; margin:17px 0 12px; }
+    .tab { padding:7px 10px; border:1.5px solid var(--ink); border-radius:999px; background:white; font-size:11px; font-weight:800; }
+    .tab.active { background:var(--ink); color:white; }
+    .filters { display:grid; grid-template-columns:1fr 140px 130px; gap:9px; }
+    .filters input,.filters select { margin:0; }
+    .list { display:grid; gap:9px; margin-top:14px; }
+    .list-item { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:13px; border:1.5px solid var(--ink); border-radius:10px; background:white; }
+    .list-item strong,.list-item small { display:block; }
+    .list-item small { margin-top:5px; color:var(--muted); }
+    .status { display:inline-block; padding:2px 7px; border-radius:999px; background:#e9edff; font-size:11px; margin-right:6px; }
+    .status.published { background:#cbf4ea; }
+    .status.needs_help { background:#ffe5d7; }
+    .empty { padding:22px; border:2px dashed var(--line); border-radius:10px; color:var(--muted); text-align:center; font-size:12px; }
+    .data-list { list-style:none; padding:0; margin:15px 0 0; }
+    .data-list li { border-bottom:1px solid var(--line); padding:9px 0; font-size:12px; overflow-wrap:anywhere; }
+    .data-list li:last-child { border:0; }
+    .data-list a { text-decoration:none; font-weight:800; }
+    .module-note { margin-top:14px; color:var(--muted); font-size:12px; line-height:1.65; }
+    .checkline { display:flex; align-items:center; font-weight:800; }
+    @media(max-width:1150px) { .layout { grid-template-columns:175px minmax(0,1fr); } .main { padding:24px; } .workspace-grid { grid-template-columns:1fr; } }
+    @media(max-width:740px) { .layout { display:block; } .sidebar { position:static; height:auto; overflow:visible; padding:16px; border-right:0; border-bottom:2px solid var(--ink); } .nav-group { display:flex; flex-wrap:wrap; gap:5px; margin-top:12px; } .nav-label { display:none; } .main { padding:20px 15px 50px; } .topbar h1 { font-size:25px; } .metrics,.flow,.form-grid,.source-review,.preview { grid-template-columns:1fr 1fr; } .filters { grid-template-columns:1fr; } }
+    @media(max-width:530px) { .metrics,.flow,.form-grid,.source-review,.preview { grid-template-columns:1fr; } .full { grid-column:auto; } }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar"><div class="logo">Resets AI<small>内容控制台</small></div>
+    <nav class="nav-group" aria-label="内容工作台"><div class="nav-label">内容工作台</div><a class="nav-link active" href="#overview"><span>▦</span>总览</a><a class="nav-link" href="#import-panel"><span>↗</span>链接导入</a><a class="nav-link" href="#queue"><span>✓</span>审核队列</a><a class="nav-link" href="#editor"><span>▤</span>内容编辑</a><a class="nav-link" href="#media-panel"><span>▧</span>媒体库</a></nav>
+    <nav class="nav-group" aria-label="运营与系统"><div class="nav-label">运营与系统</div><a class="nav-link" href="#ads-panel"><span>◫</span>广告位</a><a class="nav-link" href="#operations"><span>↗</span>热度与导入</a><a class="nav-link" href="#settings"><span>⚙</span>连接状态</a><a class="nav-link" href="/"><span>⌂</span>返回网站</a></nav>
+  </aside>
+  <main class="main" id="overview">
+    <div class="topbar"><div><h1>内容控制台</h1><p>导入链接、核对原文、预览卡片，再由你确认发布。</p></div><a class="pill" href="/">返回网站 ↗</a></div>
+    <section class="panel" id="login-panel"><h2>管理员验证</h2><div class="row" style="margin-top:16px"><label class="grow"><span>管理密钥</span><input id="token" type="password" autocomplete="off" placeholder="输入 Cloudflare 配置的 ADMIN_TOKEN" /></label><button class="button" id="login" type="button">进入后台</button></div><p class="module-note">密钥只保留在当前页面内存，关闭页面后失效。</p><p class="notice" id="login-status" role="status"></p></section>
+    <div id="workspace">
+      <p class="preview-banner" id="preview-banner">当前为控制台布局预览。可使用左侧导航查看各栏目；登录后加载真实数据并开放管理操作。</p>
+      <div class="metrics" aria-label="运营概览"><div class="metric"><span>需协助</span><strong id="metric-help">—</strong></div><div class="metric"><span>待审核</span><strong id="metric-review">—</strong></div><div class="metric"><span>已发布</span><strong id="metric-published">—</strong></div><div class="metric"><span>累计阅读</span><strong id="metric-reads">—</strong></div></div>
+      <div class="workspace-grid"><div>
+        <section class="panel" id="import-panel"><div class="panel-heading"><h2>从链接创建内容</h2><small>文章 / 视频</small></div><div class="row" style="margin-top:15px"><label class="grow"><span>原始内容链接</span><input id="import-url" type="url" placeholder="粘贴 X、B 站、YouTube 或文章链接" /></label><button class="button" id="import" type="button" disabled>开始解析 ↗</button><button class="button secondary" id="manual" type="button" disabled>手动新建</button></div><div class="flow"><div class="flow-step"><b>01 · 识别来源</b>标题、作者和日期</div><div class="flow-step"><b>02 · 提取原文</b>段落、图片或视频</div><div class="flow-step"><b>03 · 核对素材</b>顺序、授权和署名</div><div class="flow-step"><b>04 · 确认发布</b>卡片与详情预览</div></div><p class="module-note">读取不完整时进入“需协助”，保留链接与原因；系统不会补写缺失的原文。</p><p class="notice" id="import-status" role="status"></p></section>
+        <section class="panel" id="queue"><div class="panel-heading"><h2>内容库与审核队列</h2><small>按状态、平台和形式筛选</small></div><div class="tabs" id="status-tabs"><button class="tab active" data-filter="all" type="button">全部</button><button class="tab" data-filter="needs_help" type="button">需协助</button><button class="tab" data-filter="review" type="button">待审核</button><button class="tab" data-filter="draft" type="button">草稿</button><button class="tab" data-filter="published" type="button">已发布</button><button class="tab" data-filter="archived" type="button">已下架</button></div><div class="filters"><input id="filter-query" type="search" aria-label="搜索标题或作者" placeholder="搜索标题、作者、链接" /><select id="filter-source" aria-label="按平台筛选"><option value="">全部平台</option></select><select id="filter-format" aria-label="按形式筛选"><option value="">全部形式</option><option value="article">文章</option><option value="video">视频</option></select></div><div class="list" id="article-list"></div></section>
+      </div><aside>
+        <section class="panel" id="operations"><div class="panel-heading"><h2>运营概览</h2><small>真实点击数据</small></div><ul class="data-list"><li><strong>当前热度榜首</strong><div id="popular-summary">登录后加载</div></li><li><strong>最近导入任务</strong><ul class="data-list" id="job-list"><li>登录后加载</li></ul></li></ul></section>
+        <section class="panel" id="settings"><div class="panel-heading"><h2>连接状态</h2><small>仅显示配置状态</small></div><ul class="data-list"><li>D1 数据库：<strong id="setting-d1">—</strong></li><li>R2 图片存储：<strong id="setting-r2">—</strong></li><li>AI 卡片草稿：<strong id="setting-ai">—</strong></li><li>重置公告来源：<strong id="setting-resets">登录后检查</strong></li></ul><p class="module-note">X 等平台可能限制抓取。作者授权不等于平台提供机器可读的完整内容；可通过作者提供的原文和媒体补全。</p></section>
+      </aside></div>
+      <section class="panel" id="editor"><div class="panel-heading"><h2 id="editor-title">审核与编辑</h2><small id="current-status"></small></div><p class="empty" id="editor-empty">登录后从审核队列选择内容，或从链接创建新草稿。</p><form id="article-form" hidden>
+        <div class="form-grid"><label class="full"><span>原始链接 *</span><input name="source_url" required type="url" /></label><label><span>来源平台（发布必填）</span><input name="source_name" /></label><label><span>原作者 ID（发布必填）</span><input name="author" /></label><label><span>原标题（发布必填）</span><input name="title" /></label><label><span>首页卡片标题</span><input name="card_title" maxlength="180" /></label><label><span>分类</span><select name="category"><option value="opportunity">机会资讯</option><option value="tutorial">实操教程</option><option value="tools">工具观察</option><option value="case">创业案例</option><option value="pitfall">避坑经验</option></select></label><label><span>内容形式</span><select name="format"><option value="article">文章</option><option value="video">视频</option></select></label><label><span>原文发布日期</span><input name="published_at" type="date" /></label><label><span>转载方式</span><select name="rights"><option value="licensed">已获授权全文转载</option><option value="embed">视频站内播放</option><option value="summary">导读 + 来源链接</option></select></label><label class="full"><span>卡片摘要（发布必填）</span><textarea name="summary" maxlength="500"></textarea></label><label><span>封面图片</span><input name="cover_url" type="text" /></label><label><span>视频地址（YouTube 或 HTTPS MP4）</span><input name="video_url" type="url" /></label></div>
+        <div class="source-review" style="margin-top:18px"><label><span>提取的原文（只读）</span><textarea id="original-body" readonly placeholder="链接尚未提取到完整原文"></textarea><small class="help">用于对照，不会因为编辑展示稿而改变。</small></label><label><span>本站展示稿</span><textarea name="body" id="body" placeholder="按原文顺序核对段落与配图；图片单独一段：![说明](图片地址)"></textarea><small class="help">文字与图片请与作者原文逐项核对。</small></label></div>
+        <p class="module-note" id="extraction-note"></p>
+        <div class="form-grid"><label><span>上传图片到 R2</span><input id="upload-image" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></label><div class="actions"><button class="button secondary" id="upload-cover" type="button">上传为封面</button><button class="button secondary" id="upload-body" type="button">插入正文</button></div></div><p class="notice" id="upload-status" role="status"></p>
+        <div class="review-checks"><div><span>原文与素材</span><b id="check-content">待核对</b></div><div><span>来源署名</span><b id="check-credit">待核对</b></div><div><span>播放方式</span><b id="check-playback">待核对</b></div></div>
+        <label class="checkline"><input type="checkbox" name="rights_confirmed" />我已核对作者授权、原文和全部素材，可在本站转载</label>
+        <div class="preview"><div><h3>首页卡片预览</h3><div class="card-preview"><img id="preview-cover" alt="" hidden /><small id="preview-kicker"></small><h3 id="preview-title"></h3><p id="preview-summary"></p><small id="preview-source"></small></div></div><div><h3>站内详情预览</h3><div class="detail-preview"><h3 id="detail-title"></h3><p id="detail-summary"></p><div class="detail-preview-body" id="detail-body"></div><small id="detail-credit"></small></div></div></div>
+        <div class="actions" style="margin-top:20px"><button class="button secondary" type="submit" data-save="draft">保存草稿</button><button class="button secondary" type="submit" data-save="review">提交待审核</button><button class="button publish" type="submit" data-save="published">确认发布</button><button class="button danger" type="submit" data-save="archived" id="archive-button" hidden>下架</button></div><p class="notice" id="save-status" role="status"></p>
+        <div id="versions-panel" hidden style="margin-top:22px"><h3>历史版本</h3><p class="help">选择旧版会载入编辑器；再次保存才会生成新版本。</p><div class="list" id="versions-list"></div></div>
+      </form></section>
+      <section class="panel" id="media-panel"><div class="panel-heading"><h2>媒体库</h2><small>文章图片与视频来源</small></div><p class="module-note">这里显示文章引用的素材。外部图片如无法复制到 R2，发布前需人工核对稳定性。</p><div class="list" id="media-list"><p class="empty">登录后加载媒体清单。</p></div></section>
+      <section class="panel" id="ads-panel"><div class="panel-heading"><h2>两侧固定广告位</h2><small>共 4 个位置 · 到期自动隐藏</small></div><p class="module-note">未启用的位置保留首页现有示意卡。启用前请核对素材、推广链接和展示时间。</p><form id="ad-form"><div class="form-grid"><label><span>广告位置</span><select name="slot"><option value="1">左侧 · 上</option><option value="2">左侧 · 下</option><option value="3">右侧 · 上</option><option value="4">右侧 · 下</option></select></label><label><span>角标</span><input name="label" maxlength="50" placeholder="广告 · 品牌合作" /></label><label><span>标题</span><input name="title" maxlength="100" /></label><label><span>图标或 Emoji</span><input name="icon" maxlength="4" /></label><label class="full"><span>简介</span><input name="description" maxlength="120" /></label><label class="full"><span>推广链接 HTTPS</span><input name="target_url" type="url" /></label><label><span>开始时间（浏览器本地时间）</span><input name="starts_at" type="datetime-local" /></label><label><span>结束时间（浏览器本地时间）</span><input name="ends_at" type="datetime-local" /></label></div><label class="checkline" style="margin-top:16px"><input name="active" type="checkbox" />启用并在公开页面展示</label><div class="actions" style="margin-top:16px"><button class="button" type="submit" disabled>保存广告位</button></div><p class="notice" id="ad-status" role="status"></p></form></section>
+    </div>
+  </main>
+</div>
+<script defer src="./admin.js"></script>
+</body>
+</html>

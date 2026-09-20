@@ -1,0 +1,235 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+import { onRequestGet as listAdmin, onRequestPost as create, onRequestPut as update } from "../functions/api/admin/articles.js";
+import { onRequestGet as authenticateAdmin } from "../functions/api/admin/auth.js";
+import { onRequestGet as getAdminItem } from "../functions/api/admin/item.js";
+import { onRequestGet as listPublic } from "../functions/api/articles/index.js";
+import { onRequestGet as getItem } from "../functions/api/articles/item.js";
+import { onRequestPost as click } from "../functions/api/articles/click.js";
+import { onRequestGet as popular } from "../functions/api/articles/popular.js";
+import { extractMetadata } from "../functions/api/admin/import.js";
+import { extractArticleBody, onRequestPost as importLink } from "../functions/api/admin/import.js";
+import { onRequestGet as overview } from "../functions/api/admin/overview.js";
+import { onRequestGet as versions } from "../functions/api/admin/versions.js";
+import { onRequestPost as uploadImage } from "../functions/api/admin/upload.js";
+import { onRequestGet as getMedia } from "../functions/api/media/[id].js";
+import { onRequestGet as listAds, onRequestPut as saveAd } from "../functions/api/admin/ads.js";
+import { onRequestGet as publicAds } from "../functions/api/ads.js";
+import { cleanArticle, cleanUrl } from "../lib/articles.js";
+
+function environment() {
+  const sqlite = new DatabaseSync(":memory:");
+  sqlite.exec(readFileSync(new URL("../db/schema.sql", import.meta.url), "utf8"));
+  return {
+    ADMIN_TOKEN:"test-secret",
+    DB:{ async batch(statements) {
+      sqlite.exec("BEGIN");
+      try { const output = []; for (const statement of statements) output.push(await statement.run()); sqlite.exec("COMMIT"); return output; }
+      catch (error) { sqlite.exec("ROLLBACK"); throw error; }
+    }, prepare(sql) {
+      const statement = sqlite.prepare(sql);
+      return {
+        bind(...values) {
+          return {
+            run:async () => ({ meta:statement.run(...values) }),
+            first:async () => statement.get(...values) || null,
+            all:async () => ({ results:statement.all(...values) }),
+          };
+        },
+        first:async () => statement.get() || null,
+        all:async () => ({ results:statement.all() }),
+      };
+    } },
+  };
+}
+
+function request(path, method = "GET", data, authorized = false) {
+  return new Request("https://example.com" + path, {
+    method,
+    headers:{ ...(authorized ? { authorization:"Bearer test-secret" } : {}), ...(data ? { "content-type":"application/json" } : {}) },
+    ...(data ? { body:JSON.stringify(data) } : {}),
+  });
+}
+
+const sample = {
+  source_url:"https://example.org/story", source_name:"示例来源", author:"@writer",
+  published_at:"2026-09-20", format:"article", category:"tutorial", rights:"summary",
+  title:"一个可验证的项目案例", card_title:"项目案例", summary:"先确认需求，再验证是否有人愿意付费。",
+};
+
+test("后台登录验证不依赖数据库，错误密钥仍被拒绝", async () => {
+  const env = { ADMIN_TOKEN:"test-secret" };
+  assert.equal((await authenticateAdmin({ request:request("/api/admin/auth"), env })).status, 401);
+  const accepted = await authenticateAdmin({ request:request("/api/admin/auth", "GET", undefined, true), env });
+  assert.equal(accepted.status, 200);
+  assert.deepEqual(await accepted.json(), { authenticated:true });
+});
+
+test("后台鉴权、草稿隔离、发布、下架和热度筛选", async () => {
+  const env = environment();
+  const denied = await listAdmin({ request:request("/api/admin/articles"), env });
+  assert.equal(denied.status, 401);
+  const saved = await create({ request:request("/api/admin/articles", "POST", sample, true), env });
+  assert.equal(saved.status, 201);
+  const { id } = await saved.json();
+  assert.equal((await (await listPublic({ env })).json()).articles.length, 0);
+  assert.equal((await getItem({ request:request(`/api/articles/item?id=${id}`), env })).status, 404);
+  const adminList = (await (await listAdmin({ request:request("/api/admin/articles", "GET", undefined, true), env })).json()).articles;
+  assert.equal(adminList.length, 1);
+  assert.equal("body" in adminList[0], false);
+  assert.equal((await (await getAdminItem({ request:request(`/api/admin/item?id=${id}`, "GET", undefined, true), env })).json()).article.id, id);
+
+  const published = await update({ request:request("/api/admin/articles", "PUT", { ...sample, id, status:"published" }, true), env });
+  assert.equal(published.status, 200);
+  assert.equal((await (await listPublic({ env })).json()).articles[0].id, id);
+  assert.equal((await getItem({ request:request(`/api/articles/item?id=${id}`), env })).status, 200);
+  await click({ request:request("/api/articles/click", "POST", { article_id:id }), env });
+  assert.equal((await (await popular({ env })).json()).article_id, id);
+
+  const unpublished = await update({ request:request("/api/admin/articles", "PUT", { ...sample, id, status:"draft" }, true), env });
+  assert.equal(unpublished.status, 200);
+  assert.equal((await (await listPublic({ env })).json()).articles.length, 0);
+  assert.equal((await (await popular({ env })).json()).article_id, null);
+  const history = (await (await versions({ request:request(`/api/admin/versions?id=${id}`, "GET", undefined, true), env })).json()).versions;
+  assert.deepEqual(history.map((item) => item.revision), [3,2,1]);
+  const metrics = await (await overview({ request:request("/api/admin/overview", "GET", undefined, true), env })).json();
+  assert.equal(metrics.counts.draft, 1);
+  assert.equal(metrics.total_reads, 1);
+});
+
+test("发布前校验署名、授权正文与嵌入地址", () => {
+  assert.equal(cleanArticle({ ...sample, author:"", status:"published" }).error, "publication_fields_required");
+  assert.equal(cleanArticle({ ...sample, rights:"licensed", status:"published" }).error, "licensed_body_required");
+  assert.equal(cleanArticle({ ...sample, rights:"licensed", body:"完整正文", status:"published" }).error, "rights_confirmation_required");
+  assert.equal(cleanArticle({ ...sample, rights:"embed", format:"video", status:"published" }).error, "embed_video_required");
+  assert.equal(cleanArticle({ ...sample, rights:"embed", format:"video", video_url:"https://example.org/watch", status:"published" }).error, "video_not_playable");
+  assert.equal(cleanArticle({ ...sample, rights:"embed", format:"video", video_url:"https://youtu.be/abcdefghijk", status:"published" }).error, "rights_confirmation_required");
+  assert.equal(cleanArticle({ ...sample, rights:"summary", body:"未经授权的全文" }).article.body, "");
+  assert.equal(cleanUrl("http://example.com"), null);
+  assert.equal(cleanUrl("https://127.0.0.1/private"), null);
+  assert.equal(cleanArticle({ ...sample, cover_url:"/api/media/12345678-1234-1234-1234-123456789abc.png" }).article.cover_url, "/api/media/12345678-1234-1234-1234-123456789abc.png");
+});
+
+test("图片上传须鉴权，并可经公开图片地址读取", async () => {
+  const files = new Map();
+  const env = { ADMIN_TOKEN:"test-secret", MEDIA:{
+    async put(key, file) { files.set(key, file); },
+    async get(key) {
+      const file = files.get(key);
+      return file ? { body:file.stream(), writeHttpMetadata(headers) { headers.set("content-type", "image/png"); } } : null;
+    },
+  } };
+  const data = new FormData();
+  data.set("image", new File([new Uint8Array([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0,0,0,0])], "cover.png", { type:"image/png" }));
+  const denied = await uploadImage({ request:new Request("https://example.com/api/admin/upload", { method:"POST", body:data }), env });
+  assert.equal(denied.status, 401);
+  const saved = await uploadImage({ request:new Request("https://example.com/api/admin/upload", { method:"POST", body:data, headers:{ authorization:"Bearer test-secret" } }), env });
+  assert.equal(saved.status, 201);
+  const { url } = await saved.json();
+  const media = await getMedia({ params:{ id:url.split("/").at(-1) }, env });
+  assert.equal(media.status, 200);
+  assert.equal(media.headers.get("content-type"), "image/png");
+});
+
+test("链接导入只使用页面元数据，不编造正文", () => {
+  const metadata = extractMetadata('<html><head><title>原始标题</title><meta property="og:title" content="公开标题"><meta property="og:description" content="公开摘要"><meta property="og:image" content="/cover.jpg"></head></html>', "https://example.org/post");
+  assert.equal(metadata.title, "公开标题");
+  assert.equal(metadata.summary, "公开摘要");
+  assert.equal(metadata.cover_url, "https://example.org/cover.jpg");
+  assert.equal(metadata.body, "");
+});
+
+test("来源提供 Article 结构化数据时提取署名和正文草稿", () => {
+  const html = '<script type="application/ld+json">' + JSON.stringify({
+    "@type":"Article", headline:"实践记录", author:{ name:"作者甲" },
+    datePublished:"2026-09-20", articleBody:"第一段完整内容。",
+  }) + "</script>";
+  const metadata = extractMetadata(html, "https://example.org/article");
+  assert.equal(metadata.author, "作者甲");
+  assert.equal(metadata.body, "第一段完整内容。");
+  assert.equal(metadata.published_at, "2026-09-20");
+});
+
+test("通用文章提取保持段落和段内图片顺序", () => {
+  const body = extractArticleBody('<nav>菜单</nav><article><h2>原始标题</h2><p>第一段<img src="/a.png" alt="图一">后半段</p><p>第二段。</p></article><aside>推荐</aside>', "https://example.org/post");
+  assert.equal(body, "## 原始标题\n\n第一段\n\n![图一](https://example.org/a.png)\n\n后半段\n\n第二段。");
+});
+
+test("导入链接写入审核队列并保留原文和任务记录", async () => {
+  const env = environment();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response('<html><head><meta property="og:title" content="原文标题"><meta name="author" content="@writer"><meta property="og:description" content="原文摘要"></head><article><p>第一段完整原文。</p></article></html>', { headers:{ "content-type":"text/html" } });
+  try {
+    const response = await importLink({ request:request("/api/admin/import", "POST", { url:"https://example.org/post" }, true), env });
+    assert.equal(response.status, 201);
+    const result = await response.json();
+    assert.equal(result.draft.status, "review");
+    assert.equal(result.draft.original_body, "第一段完整原文。");
+    const loaded = await (await getAdminItem({ request:request(`/api/admin/item?id=${result.id}`, "GET", undefined, true), env })).json();
+    assert.equal(loaded.article.body, "第一段完整原文。");
+    const metrics = await (await overview({ request:request("/api/admin/overview", "GET", undefined, true), env })).json();
+    assert.equal(metrics.jobs.length, 1);
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("导入图片到 R2 后仍保留原始图片地址供审核", async () => {
+  const env = environment();
+  const images = new Map();
+  env.MEDIA = { async put(key, data) { images.set(key, data); } };
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => String(url).endsWith(".png") ?
+    new Response(new Uint8Array([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0,0,0,0]), { headers:{ "content-type":"image/png" } }) :
+    new Response('<meta property="og:title" content="带图教程"><meta property="og:description" content="教程摘要"><meta name="author" content="作者"><article><p>文字<img src="/a.png" alt="原图"></p></article>', { headers:{ "content-type":"text/html" } });
+  try {
+    const response = await importLink({ request:request("/api/admin/import", "POST", { url:"https://example.org/post" }, true), env });
+    assert.equal(response.status, 201);
+    const { draft } = await response.json();
+    assert.equal(images.size, 1);
+    assert.match(draft.original_body, /https:\/\/example\.org\/a\.png/);
+    assert.match(draft.body, /\/api\/media\/[a-f0-9-]{36}\.png/);
+    assert.equal(draft.status, "review");
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("受限的 X 链接只入需协助队列，不伪造正文", async () => {
+  const env = environment();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response("受限", { status:403 });
+  try {
+    const response = await importLink({ request:request("/api/admin/import", "POST", { url:"https://x.com/writer/status/123456" }, true), env });
+    assert.equal(response.status, 201);
+    const { draft, issues } = await response.json();
+    assert.equal(draft.status, "needs_help");
+    assert.equal(draft.body, "");
+    assert.ok(issues.some((issue) => issue.includes("无法")));
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("广告位须鉴权，启用后才公开，过期后自动隐藏", async () => {
+  const env = environment();
+  const ad = { slot:1, label:"推广", title:"示例品牌", description:"产品介绍", target_url:"https://example.org", active:true };
+  assert.equal((await saveAd({ request:request("/api/admin/ads", "PUT", ad), env })).status, 401);
+  assert.equal((await saveAd({ request:request("/api/admin/ads", "PUT", { ...ad, target_url:"http://example.org" }, true), env })).status, 400);
+  assert.equal((await saveAd({ request:request("/api/admin/ads", "PUT", ad, true), env })).status, 200);
+  assert.equal((await (await publicAds({ env })).json()).ads.length, 1);
+  assert.equal((await (await listAds({ request:request("/api/admin/ads", "GET", undefined, true), env })).json()).ads[0].title, "示例品牌");
+  const expired = { ...ad, ends_at:"2020-01-01T00:00" };
+  assert.equal((await saveAd({ request:request("/api/admin/ads", "PUT", expired, true), env })).status, 200);
+  assert.equal((await (await publicAds({ env })).json()).ads.length, 0);
+});
+
+test("旧文章迁移后仍保留公开状态和首个历史版本", () => {
+  const sqlite = new DatabaseSync(":memory:");
+  sqlite.exec(`CREATE TABLE articles (
+    id TEXT PRIMARY KEY,source_url TEXT,source_name TEXT,author TEXT,published_at TEXT,
+    format TEXT,category TEXT,rights TEXT,status TEXT,title TEXT,card_title TEXT,
+    summary TEXT,cover_url TEXT,body TEXT,video_url TEXT
+  ); INSERT INTO articles VALUES ('old','https://example.org/old','来源','作者','2026-09-01',
+    'article','tutorial','licensed','published','旧文章','旧卡片','摘要','','旧正文','');`);
+  sqlite.exec(readFileSync(new URL("../db/migrations/001-content-console-v2.sql", import.meta.url), "utf8"));
+  assert.equal(sqlite.prepare("SELECT status FROM articles WHERE id='old'").get().status, "published");
+  const version = sqlite.prepare("SELECT snapshot FROM article_versions WHERE article_id='old'").get();
+  assert.equal(JSON.parse(version.snapshot).body, "旧正文");
+});

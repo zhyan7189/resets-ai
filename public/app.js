@@ -6,8 +6,35 @@ const articles = [
   { id:"cloudflare-workers-ai", category:"tools", label:"工具观察 · Cloudflare", title:"用 Workers AI 做出第一个可运行应用", summary:"官方入门文档覆盖模型调用与部署，适合验证小型产品。", source:"Cloudflare · 2026-04-21", url:"https://developers.cloudflare.com/workers-ai/get-started/", style:"mint" },
   { id:"zapier-ai-automation", category:"tutorial", label:"实操教程 · Zapier", title:"用 AI 自动化交付重复的业务流程", summary:"从流程拆分与工具连接入手，观察服务型产品的交付方式。", source:"Zapier · 2026-04-01", url:"https://zapier.com/blog/ai-for-business-automation/", style:"" },
 ];
+const categoryNames = { opportunity:"机会资讯", tutorial:"实操教程", tools:"工具观察", case:"创业案例", pitfall:"避坑经验" };
+let activeArticleFilter = "all";
+let articleSearch = "";
 
 const $ = (id) => document.getElementById(id);
+async function loadAds() {
+  try {
+    const response = await fetch("/api/ads", { headers:{ accept:"application/json" }, cache:"no-store" });
+    if (!response.ok) return;
+    const { ads } = await response.json();
+    for (const ad of ads || []) {
+      const placeholder = document.querySelector(`[data-ad-slot="${ad.slot}"]`);
+      if (!placeholder || !/^https:\/\//i.test(ad.target_url || "")) continue;
+      const link = document.createElement("a");
+      link.className = placeholder.className;
+      link.dataset.adSlot = String(ad.slot);
+      link.href = ad.target_url;
+      link.target = "_blank";
+      link.rel = "sponsored noopener noreferrer";
+      for (const [className, value] of [["ad-label",ad.label || "广告 · 品牌合作"],["ad-icon",ad.icon || "✦"],["ad-title",ad.title],["ad-description",ad.description]]) {
+        const node = document.createElement(className === "ad-title" ? "strong" : className === "ad-description" ? "small" : "span");
+        if (className.startsWith("ad-") && !["ad-title","ad-description"].includes(className)) node.className = className;
+        node.textContent = value || "";
+        link.append(node);
+      }
+      placeholder.replaceWith(link);
+    }
+  } catch { /* 广告接口暂不可用时保留原示意卡。 */ }
+}
 function readReminderPreference() {
   try {
     return localStorage.getItem("resets-ai-reminders") === "enabled";
@@ -62,14 +89,24 @@ function renderPopularArticle(article, clicks = 0) {
   if (!card || !article) return;
   popularArticle = article;
   card.href = article.url;
-  card.target = article.articleType === "source" ? "_self" : "_blank";
+  card.target = "_self";
   card.rel = "noopener noreferrer";
   card.setAttribute("aria-label", `热度榜首：${article.title}`);
   $("popular-label").textContent = `热度榜首 · ${article.label}`;
   $("popular-title").textContent = article.cardTitle || article.title;
   $("popular-summary").textContent = article.summary;
   $("popular-source").textContent = `${article.source} · ${new Intl.NumberFormat("zh-CN").format(clicks)} 次点击`;
-  $("popular-art").textContent = "热度 #1";
+  const art = $("popular-art");
+  art.replaceChildren();
+  if (article.coverUrl) {
+    const cover = document.createElement("img");
+    cover.src = article.coverUrl;
+    cover.alt = "";
+    cover.loading = "lazy";
+    art.append(cover);
+  } else {
+    art.textContent = "热度 #1";
+  }
 }
 
 async function loadPopularArticle() {
@@ -225,16 +262,11 @@ function addPleaBurst() {
 
 function pleadForReset() {
   const button = $("reset-plea-button");
-  const scene = $("workbench-scene");
   if (navigator.vibrate) navigator.vibrate(14);
   button.classList.remove("is-pleading");
   void button.offsetHeight;
   button.classList.add("is-pleading");
   window.setTimeout(() => button.classList.remove("is-pleading"), 280);
-  scene.classList.remove("is-pinched");
-  void scene.offsetHeight;
-  scene.classList.add("is-pinched");
-  window.setTimeout(() => scene.classList.remove("is-pinched"), 650);
   addPleaBurst();
   if (pleaState.count !== null) {
     pleaState.localCount += 1;
@@ -345,27 +377,59 @@ function renderHistory(events) {
     }
   }
   $("history-note").textContent = `${weeks[0][0].date} — ${weeks.at(-1)[6].date} · 已收录 ${events.length} 条公开公告 · 日期按 UTC 展示`;
+  requestAnimationFrame(() => {
+    const scroll = document.querySelector(".heat-scroll");
+    months.style.width = `${cells.scrollWidth}px`;
+    scroll.scrollLeft = scroll.scrollWidth - scroll.clientWidth;
+    $("history-slider").value = "1000";
+  });
 }
 
+const historyScroll = document.querySelector(".heat-scroll");
+const historySlider = $("history-slider");
+historySlider.addEventListener("input", () => {
+  const max = Math.max(0, historyScroll.scrollWidth - historyScroll.clientWidth);
+  historyScroll.scrollLeft = max * Number(historySlider.value) / 1000;
+  hideCellTooltip();
+});
+historyScroll.addEventListener("scroll", () => {
+  const max = Math.max(0, historyScroll.scrollWidth - historyScroll.clientWidth);
+  historySlider.value = max ? String(Math.round(historyScroll.scrollLeft / max * 1000)) : "1000";
+  hideCellTooltip();
+}, { passive:true });
+
 function renderArticles(filter = "all") {
+  activeArticleFilter = filter;
   const grid = $("article-grid");
   grid.replaceChildren();
-  for (const article of articles.filter((item) => filter === "all" || item.category === filter)) {
-    const card = document.createElement(article.articleType === "source" ? "button" : "a");
+  const shown = articles.filter((item) => (filter === "all" || item.category === filter) &&
+    (!articleSearch || [item.title, item.summary, item.source].join(" ").toLocaleLowerCase().includes(articleSearch)));
+  for (const article of shown) {
+    const card = document.createElement("button");
     card.className = "article" + (article.style ? " " + article.style : "");
+    card.type = "button";
+    card.setAttribute("aria-label", `打开文章：${article.title}`);
     card.addEventListener("click", () => recordArticleClick(article), { capture:true });
-    if (article.articleType === "source") {
-      card.type = "button";
-      card.setAttribute("aria-label", `打开文章：${article.title}`);
-      card.addEventListener("click", () => openArticleReader(article));
-    } else {
-      card.href = article.url;
-      card.target = "_blank";
-      card.rel = "noopener noreferrer";
-    }
+    card.addEventListener("click", () => openArticleReader(article));
     const kicker = document.createElement("span");
     kicker.className = "article-kicker";
     kicker.textContent = article.label;
+    if (article.coverUrl) {
+      const media = document.createElement("span");
+      media.className = "article-media";
+      const image = document.createElement("img");
+      image.src = article.coverUrl;
+      image.alt = "";
+      image.loading = "lazy";
+      media.append(image);
+      if (article.format === "video") {
+        const play = document.createElement("span");
+        play.className = "article-play";
+        play.textContent = "▶";
+        media.append(play);
+      }
+      card.append(media);
+    }
     const title = document.createElement("h3");
     title.textContent = article.cardTitle || article.title;
     const summary = document.createElement("p");
@@ -375,20 +439,46 @@ function renderArticles(filter = "all") {
     const source = document.createElement("span");
     source.textContent = article.source;
     const action = document.createElement("span");
-    action.textContent = article.articleType === "source" ? "站内阅读 ↗" : "阅读原文 ↗";
+    action.textContent = "站内阅读 ↗";
     foot.append(source, action);
     card.append(kicker, title, summary, foot);
     grid.append(card);
+  }
+  if (!shown.length) {
+    const empty = document.createElement("p");
+    empty.className = "article-empty";
+    empty.textContent = "没有找到符合条件的内容。";
+    grid.append(empty);
+  }
+}
+
+async function loadPublishedArticles() {
+  try {
+    const response = await fetch("/api/articles", { headers:{ accept:"application/json" }, cache:"no-store" });
+    if (!response.ok) return;
+    const data = await response.json();
+    for (const row of data.articles || []) {
+      if (articles.some((item) => item.id === row.id || item.url === row.source_url)) continue;
+      articles.unshift({
+        id:row.id, category:row.category, label:`${categoryNames[row.category] || "机会资讯"} · ${row.source_name}${row.format === "video" ? " · 视频" : ""}`,
+        title:row.title, cardTitle:row.card_title, summary:row.summary,
+        source:`${row.author} · ${row.published_at ? row.published_at.slice(0, 10) : "日期未注明"}`,
+        url:`/article.html?id=${encodeURIComponent(row.id)}`, coverUrl:row.cover_url,
+        articleType:"database", format:row.format, style:row.format === "video" ? "rose" : "",
+      });
+    }
+    renderArticles(activeArticleFilter);
+    loadPopularArticle();
+  } catch {
+    // 数据库未绑定时保留原有人工整理卡片。
   }
 }
 
 function handlePopularArticleClick(event) {
   if (!popularArticle) return;
+  event.preventDefault();
   recordArticleClick(popularArticle);
-  if (popularArticle.articleType === "source") {
-    event.preventDefault();
-    openArticleReader(popularArticle);
-  }
+  openArticleReader(popularArticle);
 }
 
 function renderArticleBlock(block, body, imageNumber) {
@@ -460,35 +550,155 @@ function renderArticleBlock(block, body, imageNumber) {
   return imageNumber;
 }
 
-function openArticleReader(article) {
+function readerMediaUrl(value) {
+  if (/^\/api\/media\/[a-f0-9-]{36}\.(?:jpg|png|webp|gif)$/.test(value || "")) return value;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.href : "";
+  } catch { return ""; }
+}
+
+function appendStoredBody(text, container) {
+  for (const raw of String(text || "").split(/\n\s*\n/)) {
+    const block = raw.trim();
+    if (!block) continue;
+    const image = block.match(/^!\[([^\]]*)\]\((https:\/\/[^\s)]+|\/api\/media\/[a-f0-9-]{36}\.(?:jpg|png|webp|gif))\)$/);
+    if (image && readerMediaUrl(image[2])) {
+      const figure = document.createElement("figure");
+      figure.className = "reader-figure";
+      const img = document.createElement("img");
+      img.src = image[2];
+      img.alt = image[1];
+      img.loading = "lazy";
+      figure.append(img);
+      if (image[1]) {
+        const caption = document.createElement("figcaption");
+        caption.textContent = image[1];
+        figure.append(caption);
+      }
+      container.append(figure);
+      continue;
+    }
+    const heading = block.match(/^(#{1,3})\s+([\s\S]+)$/);
+    const node = document.createElement(heading ? heading[1].length === 1 ? "h3" : "h4" : block.startsWith("> ") ? "blockquote" : "p");
+    node.textContent = heading ? heading[2] : block.startsWith("> ") ? block.slice(2) : block;
+    container.append(node);
+  }
+}
+
+function youtubeEmbedUrl(value) {
+  const url = readerMediaUrl(value);
+  if (!url) return "";
+  const parsed = new URL(url);
+  let id = "";
+  if (["youtube.com", "www.youtube.com", "m.youtube.com"].includes(parsed.hostname)) id = parsed.searchParams.get("v") || "";
+  if (parsed.hostname === "youtu.be") id = parsed.pathname.slice(1);
+  return /^[a-zA-Z0-9_-]{11}$/.test(id) ? `https://www.youtube-nocookie.com/embed/${id}` : "";
+}
+
+let readerRequest = 0;
+async function openArticleReader(article) {
   const reader = $("article-reader");
   if (!reader) return;
-  const content = article.content;
-  const authorId = content?.author?.id || article.authorId;
-  const createdAt = content?.createdAt ? new Intl.DateTimeFormat("zh-CN", { timeZone:"UTC", year:"numeric", month:"2-digit", day:"2-digit" }).format(new Date(content.createdAt)) : article.source.replace("xilo · ", "");
-  $("reader-kicker").textContent = article.label;
-  $("reader-title").textContent = content?.title || article.title;
-  $("reader-meta").textContent = `${authorId} · ${createdAt}`;
-  $("reader-summary").textContent = content?.previewText || article.summary;
-  const image = $("reader-cover");
-  image.src = content?.cover || article.image || "";
-  image.alt = `${authorId} 原帖封面`;
-  image.hidden = false;
-  image.onerror = () => { image.hidden = true; };
+  const requestId = ++readerRequest;
   const body = $("reader-body");
   body.replaceChildren();
-  let imageNumber = 1;
-  for (const block of content?.blocks || []) {
-    imageNumber = renderArticleBlock(block, body, imageNumber);
-  }
+  $("reader-kicker").textContent = article.label;
+  $("reader-title").textContent = article.title;
+  $("reader-meta").textContent = article.source;
+  $("reader-summary").textContent = article.summary;
+  $("reader-note").textContent = "来源信息请以原文为准。";
+  const cover = $("reader-cover");
+  cover.hidden = !readerMediaUrl(article.coverUrl || "");
+  if (!cover.hidden) cover.src = article.coverUrl;
+  cover.alt = `${article.title}封面`;
+  cover.onerror = () => { cover.hidden = true; };
   const source = $("reader-source");
-  source.href = content?.sourceUrl || article.url;
-  source.textContent = `文章来源：${authorId}（X） ↗`;
-  if (typeof reader.showModal === "function") reader.showModal();
-  else reader.setAttribute("open", "");
+  source.href = article.articleType === "database" ? "#" : article.url;
+  source.textContent = "查看原始来源 ↗";
+  source.hidden = article.articleType === "database";
+  if (!reader.open) reader.showModal();
+  reader.querySelector(".article-reader-panel").scrollTop = 0;
+
+  if (article.articleType === "source") {
+    if (!article.content && article.contentUrl) {
+      try {
+        const response = await fetch(article.contentUrl, { cache:"no-store" });
+        if (response.ok) article.content = await response.json();
+      } catch { /* 下方显示可用的来源信息。 */ }
+    }
+    if (requestId !== readerRequest) return;
+    const content = article.content;
+    const authorId = content?.author?.id || article.authorId || article.source.split(" · ")[0];
+    const createdAt = content?.createdAt ? new Intl.DateTimeFormat("zh-CN", { timeZone:"UTC", year:"numeric", month:"2-digit", day:"2-digit" }).format(new Date(content.createdAt)) : article.source.split(" · ").at(-1);
+    $("reader-title").textContent = content?.title || article.title;
+    $("reader-meta").textContent = `${authorId} · ${createdAt}`;
+    $("reader-summary").textContent = content?.previewText || article.summary;
+    if (readerMediaUrl(content?.cover || "")) { cover.src = content.cover; cover.hidden = false; }
+    let imageNumber = 1;
+    for (const block of content?.blocks || []) imageNumber = renderArticleBlock(block, body, imageNumber);
+    if (!content?.blocks?.length) appendStoredBody("本站暂未收录这篇文章的全文。", body);
+    source.href = content?.sourceUrl || article.url;
+    source.textContent = `文章来源：${authorId}（X） ↗`;
+    source.hidden = false;
+    $("reader-note").textContent = content?.blocks?.length ? "授权转载 · 文章内容、配图和作者署名均来自原帖。" : "原文可由右侧链接查看。";
+    return;
+  }
+
+  if (article.articleType === "database") {
+    try {
+      const response = await fetch(`/api/articles/item?id=${encodeURIComponent(article.id)}`, { cache:"no-store" });
+      if (!response.ok) throw new Error("文章暂时无法读取");
+      const { article:record } = await response.json();
+      if (requestId !== readerRequest) return;
+      $("reader-title").textContent = record.title;
+      $("reader-meta").textContent = [record.author, record.published_at?.slice(0, 10)].filter(Boolean).join(" · ");
+      $("reader-summary").textContent = record.summary;
+      const image = readerMediaUrl(record.cover_url);
+      cover.hidden = !image;
+      if (image) cover.src = image;
+      source.href = record.source_url;
+      source.textContent = `信息来源：${record.author}（${record.source_name}） ↗`;
+      source.hidden = false;
+      if (record.rights === "licensed" && record.body) {
+        appendStoredBody(record.body, body);
+        $("reader-note").textContent = "已获授权转载 · 正文和配图来自原作者。";
+      } else if (record.format === "video" && record.rights === "embed") {
+        const embed = youtubeEmbedUrl(record.video_url);
+        if (embed) {
+          const iframe = document.createElement("iframe");
+          iframe.className = "reader-video";
+          iframe.src = embed;
+          iframe.title = record.title;
+          iframe.allow = "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share";
+          iframe.allowFullscreen = true;
+          body.append(iframe);
+        } else if (/^https:\/\/[^\s]+\.mp4(?:\?[^\s]*)?$/i.test(record.video_url || "")) {
+          const video = document.createElement("video");
+          video.className = "reader-video";
+          video.src = record.video_url;
+          video.controls = true;
+          video.preload = "metadata";
+          body.append(video);
+        } else appendStoredBody("该视频暂无法在本站播放，请通过下方来源链接观看。", body);
+        $("reader-note").textContent = "视频来源已标注于下方。";
+      } else {
+        appendStoredBody("本站目前仅收录这篇内容的导读，全文请查看原始来源。", body);
+        $("reader-note").textContent = "本站导读 · 原始内容由作者发布。";
+      }
+    } catch (error) {
+      if (requestId === readerRequest) appendStoredBody(error.message, body);
+    }
+    return;
+  }
+
+  appendStoredBody("本站目前仅收录这篇内容的导读，全文请查看原始来源。", body);
+  source.textContent = `信息来源：${article.source.split(" · ")[0]} ↗`;
+  $("reader-note").textContent = "本站导读 · 原始内容由来源网站发布。";
 }
 
 function closeArticleReader() {
+  readerRequest++;
   const reader = $("article-reader");
   if (!reader) return;
   if (typeof reader.close === "function") reader.close();
@@ -577,6 +787,10 @@ document.querySelectorAll(".tab").forEach((button) => {
     renderArticles(button.dataset.filter);
   });
 });
+$("article-search")?.addEventListener("input", (event) => {
+  articleSearch = event.target.value.trim().toLocaleLowerCase();
+  renderArticles(activeArticleFilter);
+});
 $("reader-close")?.addEventListener("click", closeArticleReader);
 $("article-reader")?.addEventListener("click", (event) => {
   if (event.target === event.currentTarget) closeArticleReader();
@@ -586,6 +800,8 @@ syncReminderButton();
 $("notify-button").addEventListener("click", toggleReminder);
 $("reset-plea-button").addEventListener("click", pleadForReset);
 renderArticles();
+loadAds();
+loadPublishedArticles();
 loadArticleContent();
 renderPopularArticle(articles.find((article) => article.featured) || articles[0]);
 loadPopularArticle();
