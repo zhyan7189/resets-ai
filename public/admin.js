@@ -17,7 +17,6 @@ let originalBody = "";
 let extractionState = "manual";
 let extractionNote = "";
 let adRows = [];
-let previewVideoValue = "";
 let mediaEntries = [];
 let operationsPage = 1;
 let operationsTotal = 0;
@@ -76,9 +75,7 @@ function playable(value) {
   } catch { return false; }
 }
 
-function previewVideo(value, container = $("detail-body")) {
-  if (container === $("detail-body") && value && value === previewVideoValue) return;
-  previewVideoValue = value || "";
+function previewVideo(value, container) {
   container.replaceChildren();
   let url;
   try { url = new URL(value); } catch { return previewBody("视频地址待补全。", container); }
@@ -93,7 +90,7 @@ function previewVideo(value, container = $("detail-body")) {
   } else previewBody("目前无法在本站播放该链接，请补充 YouTube 或 HTTPS MP4 地址。", container);
 }
 
-function previewBody(body, container = $("detail-body")) {
+function previewBody(body, container) {
   container.replaceChildren();
   for (const raw of String(body || "全文待补全").split(/\n\s*\n/)) {
     const block = raw.trim();
@@ -137,6 +134,7 @@ function fill(article = {}) {
     imageUrls.length ? `图片已存入 R2：${savedImages}/${imageUrls.length} 张。${savedImages < imageUrls.length ? "未入库的图片已保留原地址，请在发布前核对。" : ""}` :
     "来源页面未提取到可保存的图片。";
   $("editor-title").textContent = editingId ? `编辑档案 ${article.archive_code || ""}` : "新增档案";
+  $("editor-mode").textContent = editingId ? "编辑档案" : "新增档案";
   $("current-status").textContent = `当前：${statusNames[article.status] || "未保存"}${revision ? ` · 第 ${revision} 版` : ""}`;
   $("article-form").hidden = false;
   $("editor-empty").hidden = true;
@@ -155,11 +153,6 @@ function preview() {
   $("preview-title").textContent = data.card_title || data.title || "卡片标题待填";
   $("preview-summary").textContent = data.summary || "摘要待填";
   $("preview-source").textContent = [data.author, data.published_at].filter(Boolean).join(" · ");
-  $("detail-title").textContent = data.title || "文章标题待填";
-  $("detail-summary").textContent = data.summary || "";
-  if (data.rights === "embed") previewVideo(data.video_url);
-  else { previewVideoValue = ""; previewBody(data.rights === "licensed" ? data.body : "仅展示导读，阅读原文请使用来源链接。"); }
-  $("detail-credit").textContent = `信息来源：${data.author || "作者待填"}（${data.source_name || "平台待填"}） · ${data.source_url || "原文链接待填"}`;
   $("check-content").textContent = data.rights === "licensed" ? (data.body ? "请与左侧原文核对" : "正文缺失") : data.rights === "embed" ? "视频内容" : "仅导读";
   $("check-credit").textContent = data.author && data.source_name ? "已填写，待确认" : "缺少作者或平台";
   $("check-playback").textContent = data.rights === "embed" ? (playable(data.video_url) ? "可站内播放，待检查" : "视频地址不可播放") : "不适用";
@@ -467,13 +460,16 @@ async function openReviewPreview(id, canReview) {
 async function submitReview(action, note = "") {
   if (!reviewing) return;
   const article = reviewing;
-  if (action === "approve" && !window.confirm(`确认已核对原文、授权与全部素材，并发布“${article.title}”？`)) return;
+  const button = action === "approve" ? $("approve-confirm") : $("reject-confirm");
+  button.disabled = true;
   try {
     await api("/api/admin/review", { method:"POST", body:JSON.stringify({ id:article.id, revision:article.revision, action, note }) });
+    if ($("approve-dialog").open) $("approve-dialog").close();
     $("review-dialog").close(); reviewing = null;
     status("review-status", action === "approve" ? "审核通过，档案已发布。" : "已拒绝，档案进入未通过列表。");
     await Promise.all([refreshReview(), refreshList(), refreshOverview(), refreshOperations()]);
-  } catch (error) { status("review-dialog-status", error.message, true); }
+  } catch (error) { status(action === "approve" ? "approve-status" : "review-dialog-status", error.message, true); }
+  finally { button.disabled = false; }
 }
 
 async function openWorkspace() {
@@ -501,6 +497,7 @@ $("new-close").addEventListener("click", () => $("new-dialog").close());
 $("choose-link").addEventListener("click", () => { $("import-panel").hidden = false; $("new-choices").hidden = true; $("import-url").focus(); });
 $("manual").addEventListener("click", () => { $("new-dialog").close(); fill({ format:"article", category:"opportunity", rights:"licensed", status:"draft" }); status("save-status", "已打开空白录入表单。填写后保存并提交审核。"); });
 $("close-editor").addEventListener("click", () => $("editor").close());
+$("editor").addEventListener("click", (event) => { if (event.target === event.currentTarget) event.currentTarget.close(); });
 
 $("import").addEventListener("click", async () => {
   const url = $("import-url").value.trim();
@@ -552,7 +549,16 @@ for (const tab of document.querySelectorAll("[data-review-filter]")) tab.addEven
 $("review-prev").addEventListener("click", () => { if (reviewPage > 1) { reviewPage--; refreshReview(); } });
 $("review-next").addEventListener("click", () => { if (reviewPage * 20 < reviewTotal) { reviewPage++; refreshReview(); } });
 $("review-close").addEventListener("click", () => $("review-dialog").close());
-$("review-approve").addEventListener("click", () => submitReview("approve"));
+$("review-approve").addEventListener("click", () => {
+  if (!reviewing) return;
+  $("approve-summary").textContent = `即将发布「${reviewing.card_title || reviewing.title}」。`;
+  status("approve-status", "");
+  $("approve-dialog").showModal();
+});
+$("approve-cancel").addEventListener("click", () => { if (!$("approve-confirm").disabled) $("approve-dialog").close(); });
+$("approve-confirm").addEventListener("click", () => submitReview("approve"));
+$("approve-dialog").addEventListener("click", (event) => { if (event.target === event.currentTarget && !$("approve-confirm").disabled) event.currentTarget.close(); });
+$("approve-dialog").addEventListener("cancel", (event) => { if ($("approve-confirm").disabled) event.preventDefault(); });
 $("review-reject").addEventListener("click", () => { $("reject-box").hidden = false; $("reject-reason").focus(); });
 $("reject-confirm").addEventListener("click", () => { const note = $("reject-reason").value.trim(); if (!note) return status("review-dialog-status", "请填写拒绝原因。", true); submitReview("reject", note); });
 
