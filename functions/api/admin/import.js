@@ -105,6 +105,14 @@ export function extractXEmbed(data, sourceUrl) {
   return { author:`@${handle}`, title:data?.author_name ? `${data.author_name} (@${handle}) on X` : `@${handle} on X`, summary:text.slice(0, 180), body:text };
 }
 
+export function mergeXEmbedBody(body, embedText) {
+  const existing = String(body || "").trim();
+  const text = String(embedText || "").trim();
+  if (!text) return existing;
+  const written = existing.replace(/^!\[[^\]]*\]\([^\n]+\)\s*$/gm, "").trim();
+  return written ? existing : [text, existing].filter(Boolean).join("\n\n");
+}
+
 async function readLimited(response) {
   const reader = response.body?.getReader();
   if (!reader) return { html:"", truncated:false };
@@ -243,7 +251,10 @@ export async function onRequestPost({ request, env }) {
           metadata.author = embed.author;
           metadata.title = embed.title;
           if (!metadata.summary) metadata.summary = embed.summary;
-          if (!sourceBody && embed.body) { sourceBody = embed.body; metadata.body = embed.body; }
+          if (embed.body) {
+            sourceBody = mergeXEmbedBody(sourceBody, embed.body);
+            metadata.body = sourceBody;
+          }
           extraction = embed.body ? "partial" : extraction;
           if (metadata.format === "video") metadata.video_url = url;
           if (embed.body) {

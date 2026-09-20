@@ -16,10 +16,12 @@ export async function onRequestGet({ request, env }) {
     const params = new URL(request.url).searchParams;
     const page = Math.max(1, Math.min(10000, Number.parseInt(params.get("page") || "1", 10) || 1));
     const pageSize = params.get("page_size") === "10" ? 10 : 20;
+    const order = params.get("sort") === "newest" ? "a.created_at DESC, ai.number DESC" : "ai.number ASC";
     const filters = [];
     const values = [];
     const status = params.get("status") || "";
     if (["draft","needs_help","review","rejected","published","archived","discarded"].includes(status)) { filters.push("a.status=?"); values.push(status); }
+    else filters.push("a.status!='discarded'");
     const format = params.get("format") || "";
     if (["article","video"].includes(format)) { filters.push("a.format=?"); values.push(format); }
     const query = (params.get("q") || "").trim().slice(0, 100);
@@ -31,7 +33,7 @@ export async function onRequestGet({ request, env }) {
       a.extraction_state, a.extraction_note, a.revision, a.updated_at,
       COALESCE(c.clicks, 0) AS clicks
       FROM articles a LEFT JOIN archive_ids ai ON ai.article_id = a.id LEFT JOIN article_clicks c ON c.article_id = a.id
-      ${where} ORDER BY a.updated_at DESC LIMIT ? OFFSET ?`).bind(...values, pageSize, (page - 1) * pageSize).all();
+      ${where} ORDER BY ${order} LIMIT ? OFFSET ?`).bind(...values, pageSize, (page - 1) * pageSize).all();
     return json({ articles:result.results || [], total:count?.total || 0, page, page_size:pageSize });
   } catch { return json({ error:"articles_unavailable" }, 503); }
 }
@@ -86,8 +88,9 @@ export async function onRequestPut({ request, env }) {
   const { article, error } = cleanArticle(input);
   if (error) return json({ error }, 400);
   try {
-    const existing = await env.DB.prepare("SELECT revision FROM articles WHERE id = ?").bind(id).first();
+    const existing = await env.DB.prepare("SELECT revision,status FROM articles WHERE id = ?").bind(id).first();
     if (!existing) return json({ error:"not_found" }, 404);
+    if (existing.status === "discarded") return json({ error:"restore_first" }, 409);
     if (input.revision != null && Number(input.revision) !== existing.revision) return json({ error:"revision_conflict" }, 409);
     const revision = existing.revision + 1;
     const snapshot = JSON.stringify({ id, ...article, revision });

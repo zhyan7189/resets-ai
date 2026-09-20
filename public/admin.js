@@ -9,6 +9,8 @@ let revision = null;
 let entries = [];
 let contentPage = 1;
 let contentTotal = 0;
+let recyclePage = 1;
+let recycleTotal = 0;
 let reviewFilter = "review";
 let reviewPage = 1;
 let reviewTotal = 0;
@@ -105,6 +107,8 @@ async function api(path, options = {}) {
       unsupported_image:"仅支持 JPG、PNG、WebP 和 GIF",
       invalid_target_url:"推广链接须为有效 HTTPS 地址", ad_fields_required:"启用广告时须填写标题和推广链接",
       invalid_ad_dates:"广告展示时间无效，结束时间须晚于开始时间",
+      source_unavailable:"X 来源接口暂不可用，请稍后重试", source_text_unavailable:"来源未提供可提取的文字，请人工核对并填写摘要",
+      restore_first:"请先从回收站恢复档案", restore_unavailable:"恢复失败，请刷新回收站后重试",
     };
     const error = new Error(labels[data.error] || data.error || `请求失败（${response.status}）`);
     error.code = data.error;
@@ -200,6 +204,7 @@ function fill(article = {}) {
   $("editor-title").textContent = editingId ? `编辑档案 ${article.archive_code || ""}` : "新增档案";
   $("editor-mode").textContent = editingId ? "编辑档案" : "新增档案";
   $("current-status").textContent = `当前：${statusNames[article.status] || "未保存"}${revision ? ` · 第 ${revision} 版` : ""}`;
+  $("reparse-x").hidden = !editingId || !/^https:\/\/(?:www\.)?(?:x|twitter)\.com\//i.test(article.source_url || "");
   $("article-form").hidden = false;
   $("editor-empty").hidden = true;
   window.location.hash = "content";
@@ -271,13 +276,65 @@ function renderList() {
 async function openArticle(id) {
   const data = await api(`/api/admin/item?id=${encodeURIComponent(id)}`);
   fill(data.article);
+  if (!data.article.summary && !$("reparse-x").hidden) await reparseXArticle();
+}
+
+async function reparseXArticle() {
+  if (!editingId) return;
+  const id = editingId;
+  const button = $("reparse-x"); button.disabled = true;
+  status("save-status", "正在重新提取 X 原文与摘要…");
+  try {
+    const data = await api("/api/admin/reparse", { method:"POST", body:JSON.stringify({ id }) });
+    if (editingId !== id || !$("editor").open) return;
+    if (!field("summary").value.trim()) field("summary").value = data.summary;
+    originalBody = data.original_body;
+    $("original-body").value = originalBody;
+    if (!field("body").value.replace(/^!\[[^\]]*\]\([^\n]+\)\s*$/gm, "").trim()) field("body").value = data.body;
+    preview();
+    status("save-status", "已填入可获取的原文和摘要。请核对后保存；当前尚未写入数据库。");
+  } catch (error) { status("save-status", error.message, true); }
+  finally { button.disabled = false; }
+}
+$("reparse-x").addEventListener("click", reparseXArticle);
+
+async function refreshRecycle() {
+  const params = new URLSearchParams({ status:"discarded", page:String(recyclePage), page_size:$("recycle-page-size").value, q:$("recycle-query").value.trim(), format:$("recycle-format").value, sort:$("recycle-sort").value });
+  const data = await api(`/api/admin/articles?${params}`);
+  recycleTotal = Number(data.total || 0);
+  if (recyclePage > 1 && (recyclePage - 1) * Number($("recycle-page-size").value) >= recycleTotal) { recyclePage--; return refreshRecycle(); }
+  const list = $("recycle-list"); list.replaceChildren();
+  if (!data.articles.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 8; cell.className = "empty"; cell.textContent = "回收站中没有匹配的档案。"; row.append(cell); list.append(row); }
+  for (const article of data.articles) {
+    const row = document.createElement("tr");
+    for (const value of [article.archive_code || "—", article.card_title || article.title || article.source_url, article.author || "待补", article.format === "video" ? "视频" : "文章", "已废弃", article.created_at?.slice(0, 16) || "—", String(article.clicks || 0)]) {
+      const cell = document.createElement("td"); cell.textContent = value; row.append(cell);
+    }
+    const action = document.createElement("td"); const button = document.createElement("button");
+    button.type = "button"; button.className = "button secondary"; button.textContent = "恢复";
+    button.addEventListener("click", async () => {
+      if (!await confirmAction({ badge:"恢复档案", title:`恢复 ${article.archive_code}？`, summary:article.card_title || article.title, detail:"恢复后回到删除前状态；若原状态为已发布，恢复后会重新向读者显示。", confirmText:"确认恢复" })) return;
+      button.disabled = true;
+      try {
+        const result = await api("/api/admin/restore", { method:"POST", body:JSON.stringify({ id:article.id, revision:article.revision }) });
+        status("recycle-status", `${article.archive_code} 已恢复为“${statusNames[result.status]}”。`);
+        await Promise.all([refreshRecycle(), refreshList(), refreshMedia(), refreshReview(), refreshOverview(), refreshOperations()]);
+      } catch (error) { status("recycle-status", error.message, true); button.disabled = false; }
+    });
+    action.append(button); row.append(action); list.append(row);
+  }
+  const size = Number($("recycle-page-size").value);
+  $("recycle-page-info").textContent = `共 ${recycleTotal} 条 · 第 ${recyclePage}/${Math.max(1, Math.ceil(recycleTotal / size))} 页`;
+  $("recycle-prev").disabled = recyclePage <= 1;
+  $("recycle-next").disabled = recyclePage * size >= recycleTotal;
 }
 
 async function refreshList() {
-  const params = new URLSearchParams({ page:String(contentPage), page_size:$("page-size").value, q:$("filter-query").value.trim(), format:$("filter-format").value, status:$("filter-status").value });
+  const params = new URLSearchParams({ page:String(contentPage), page_size:$("page-size").value, q:$("filter-query").value.trim(), format:$("filter-format").value, status:$("filter-status").value, sort:$("content-sort").value });
   const data = await api(`/api/admin/articles?${params}`);
   entries = data.articles || [];
   contentTotal = Number(data.total || 0);
+  if (contentPage > 1 && (contentPage - 1) * Number($("page-size").value) >= contentTotal) { contentPage--; return refreshList(); }
   renderList();
 }
 
@@ -373,13 +430,14 @@ async function refreshMedia() {
 function renderMedia() {
   const query = $("media-query").value.trim().toLocaleLowerCase();
   const archives = mediaArchives.filter((archive) => !query || [archive.archive_code, archive.title, ...archive.items.map((item) => item.url)].join(" ").toLocaleLowerCase().includes(query));
+  if ($("media-sort").value === "newest") archives.reverse();
   const pageSize = Number($("media-page-size").value);
   const pageCount = Math.max(1, Math.ceil(archives.length / pageSize));
   mediaPage = Math.min(mediaPage, pageCount);
   const archiveList = $("media-archive-list"); archiveList.replaceChildren();
   for (const archive of archives.slice((mediaPage - 1) * pageSize, mediaPage * pageSize)) {
     const row = document.createElement("tr");
-    for (const value of [archive.archive_code || "—", archive.title || "未命名档案", archive.items.length, archive.items.filter((item) => item.type === "cover").length, archive.items.filter((item) => item.type === "image").length, archive.items.filter((item) => item.type === "video").length, archive.items.filter((item) => item.storage === "R2").length]) {
+    for (const value of [archive.archive_code || "—", archive.title || "未命名档案", statusNames[archive.status] || archive.status || "—", archive.items.length, archive.items.filter((item) => item.type === "cover").length, archive.items.filter((item) => item.type === "image").length, archive.items.filter((item) => item.type === "video").length, archive.items.filter((item) => item.storage === "R2").length]) {
       const cell = document.createElement("td"); cell.textContent = value; row.append(cell);
     }
     const action = document.createElement("td"); const button = document.createElement("button");
@@ -387,7 +445,7 @@ function renderMedia() {
     button.addEventListener("click", () => { selectedMediaArchive = archive; mediaDetailPage = 1; $("media-archives").hidden = true; $("media-detail").hidden = false; $("media-type").value = ""; $("media-storage").value = ""; renderMediaDetail(); });
     action.append(button); row.append(action); archiveList.append(row);
   }
-  if (!archives.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 8; cell.textContent = "没有匹配的档案。"; cell.className = "empty"; row.append(cell); archiveList.append(row); }
+  if (!archives.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 9; cell.textContent = "没有匹配的档案。"; cell.className = "empty"; row.append(cell); archiveList.append(row); }
   $("media-page-info").textContent = `共 ${archives.length} 条档案 · 第 ${mediaPage}/${pageCount} 页`;
   $("media-prev").disabled = mediaPage <= 1;
   $("media-next").disabled = mediaPage >= pageCount;
@@ -524,7 +582,7 @@ async function loadVersions() {
 async function refreshReview() {
   const pending = await api("/api/admin/articles?status=review&page=1&page_size=10");
   setReviewAlert(Number(pending.total || 0));
-  const params = new URLSearchParams({ status:reviewFilter, page:String(reviewPage), page_size:"20" });
+  const params = new URLSearchParams({ status:reviewFilter, page:String(reviewPage), page_size:"20", sort:$("review-sort").value });
   const data = await api(`/api/admin/articles?${params}`);
   reviewTotal = Number(data.total || 0);
   const list = $("review-list"); list.replaceChildren();
@@ -594,7 +652,7 @@ async function openWorkspace() {
   if (!token) { window.location.replace("/controller"); return; }
   try {
     await api("/api/admin/auth");
-    const results = await Promise.allSettled([refreshList(), refreshReview(), refreshOverview(), refreshMedia(), refreshOperations(), refreshAds()]);
+    const results = await Promise.allSettled([refreshList(), refreshReview(), refreshOverview(), refreshMedia(), refreshOperations(), refreshAds(), refreshRecycle()]);
     $("workspace").hidden = false;
     const failures = results.filter((result) => result.status === "rejected");
     $("preview-banner").hidden = failures.length === 0;
@@ -628,12 +686,17 @@ $("import").addEventListener("click", async () => {
     await Promise.all([refreshList(), refreshReview(), refreshOverview(), refreshMedia(), refreshOperations()]);
   } catch (error) {
     status("new-status", error.message, true);
-    if (error.code === "duplicate_url" && error.articleId) { $("new-dialog").close(); await openArticle(error.articleId); }
+    if (error.code === "duplicate_url" && error.articleId) {
+      $("new-dialog").close();
+      const existing = await api(`/api/admin/item?id=${encodeURIComponent(error.articleId)}`);
+      if (existing.article.status === "discarded") { window.location.hash = "recycle"; status("recycle-status", `${existing.article.archive_code} 已在回收站，请先恢复后编辑。`); }
+      else await openArticle(error.articleId);
+    }
   } finally { $("import").disabled = false; }
 });
 
 let searchTimer;
-for (const id of ["filter-query","filter-format","filter-status","page-size"]) $(id).addEventListener(id === "filter-query" ? "input" : "change", () => {
+for (const id of ["filter-query","filter-format","filter-status","page-size","content-sort"]) $(id).addEventListener(id === "filter-query" ? "input" : "change", () => {
   contentPage = 1;
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => refreshList().catch((error) => status("import-status", error.message, true)), id === "filter-query" ? 250 : 0);
@@ -647,11 +710,17 @@ $("delete-confirm").addEventListener("click", async () => {
   try {
     await api("/api/admin/articles", { method:"DELETE", body:JSON.stringify({ id:deleting.id, revision:deleting.revision }) });
     $("delete-dialog").close(); deleting = null;
-    await Promise.all([refreshList(), refreshReview(), refreshOverview(), refreshOperations()]);
+    await Promise.all([refreshList(), refreshRecycle(), refreshMedia(), refreshReview(), refreshOverview(), refreshOperations()]);
   } catch (error) { status("delete-status", error.message, true); }
   finally { button.disabled = false; }
 });
+let recycleTimer;
+$("recycle-query").addEventListener("input", () => { recyclePage = 1; clearTimeout(recycleTimer); recycleTimer = setTimeout(() => refreshRecycle().catch((error) => status("recycle-status", error.message, true)), 250); });
+for (const id of ["recycle-format","recycle-sort","recycle-page-size"]) $(id).addEventListener("change", () => { recyclePage = 1; refreshRecycle().catch((error) => status("recycle-status", error.message, true)); });
+$("recycle-prev").addEventListener("click", () => { if (recyclePage > 1) { recyclePage--; refreshRecycle(); } });
+$("recycle-next").addEventListener("click", () => { if (recyclePage * Number($("recycle-page-size").value) < recycleTotal) { recyclePage++; refreshRecycle(); } });
 $("media-query").addEventListener("input", () => { mediaPage = 1; renderMedia(); });
+$("media-sort").addEventListener("change", () => { mediaPage = 1; renderMedia(); });
 $("media-page-size").addEventListener("change", () => { mediaPage = 1; renderMedia(); });
 $("media-prev").addEventListener("click", () => { if (mediaPage > 1) { mediaPage--; renderMedia(); } });
 $("media-next").addEventListener("click", () => { mediaPage++; renderMedia(); });
@@ -671,6 +740,7 @@ for (const tab of document.querySelectorAll("[data-review-filter]")) tab.addEven
   for (const other of document.querySelectorAll("[data-review-filter]")) other.classList.toggle("active", other === tab);
   refreshReview();
 });
+$("review-sort").addEventListener("change", () => { reviewPage = 1; refreshReview(); });
 $("review-prev").addEventListener("click", () => { if (reviewPage > 1) { reviewPage--; refreshReview(); } });
 $("review-next").addEventListener("click", () => { if (reviewPage * 20 < reviewTotal) { reviewPage++; refreshReview(); } });
 $("review-close").addEventListener("click", () => $("review-dialog").close());
@@ -746,7 +816,7 @@ form.addEventListener("submit", async (event) => {
 
 const sectionLinks = [...document.querySelectorAll('.nav-link[href^="#"]')];
 const views = [...document.querySelectorAll('.view')];
-const pageDescriptions = { dashboard:"档案与访问数据概览", content:"搜索、创建和编辑全部档案", review:"预览后人工审核档案", "media-panel":"搜索各档案引用的媒体", operations:"档案留存与处理记录", "ads-panel":"四个固定广告位" };
+const pageDescriptions = { dashboard:"档案与访问数据概览", content:"搜索、创建和编辑全部档案", review:"预览后人工审核档案", "media-panel":"搜索各档案引用的媒体", operations:"档案留存与处理记录", recycle:"恢复已废弃的档案", "ads-panel":"四个固定广告位" };
 function syncNavigation() {
   let name = (window.location.hash || "#dashboard").slice(1);
   if (name === "editor") name = "content";

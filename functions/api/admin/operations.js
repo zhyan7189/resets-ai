@@ -27,13 +27,14 @@ export async function onRequestGet({ request, env }) {
     const allowedStatuses = new Set(["draft","needs_help","review","rejected","published","archived","discarded"]);
     const status = allowedStatuses.has(params.get("status")) ? params.get("status") : "";
     const sortOptions = {
-      newest:"a.created_at DESC,a.id DESC",
+      archive_asc:"ai.number ASC",
+      newest:"a.created_at DESC,ai.number DESC",
       recent_activity:"a.updated_at DESC,a.id DESC",
       most_read:"COALESCE(c.clicks,0) DESC,a.created_at DESC",
       highest_ctr:"CASE WHEN COALESCE(m.impressions,0)>=20 THEN 1.0*m.clicks/m.impressions ELSE -1 END DESC,COALESCE(m.impressions,0) DESC,a.created_at DESC",
       longest:"a.created_at ASC,a.id ASC",
     };
-    const order = sortOptions[params.get("sort")] || sortOptions.newest;
+    const order = sortOptions[params.get("sort")] || sortOptions.archive_asc;
     const search = query ? "%" + query + "%" : "%";
     const where = `WHERE (a.title LIKE ? OR a.card_title LIKE ? OR ('DA' || ai.number) LIKE ?)${status ? " AND a.status=?" : ""}`;
     const bindings = [search, search, search, ...(status ? [status] : [])];

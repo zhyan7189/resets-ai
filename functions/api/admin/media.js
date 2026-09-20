@@ -5,7 +5,7 @@ export async function onRequestGet({ request, env }) {
   const missing = database(env);
   if (missing) return missing;
   try {
-    const result = await env.DB.prepare("SELECT a.id, 'DA' || ai.number AS archive_code, a.title,a.body,a.cover_url,a.video_url,a.media_manifest FROM articles a LEFT JOIN archive_ids ai ON ai.article_id=a.id ORDER BY a.updated_at DESC").all();
+    const result = await env.DB.prepare("SELECT a.id, 'DA' || ai.number AS archive_code, a.title,a.card_title,a.status,a.body,a.cover_url,a.video_url,a.media_manifest FROM articles a LEFT JOIN archive_ids ai ON ai.article_id=a.id ORDER BY ai.number ASC").all();
     const media = [];
     const archives = [];
     for (const article of result.results || []) {
@@ -18,7 +18,7 @@ export async function onRequestGet({ request, env }) {
           media.push(entry);
         }
       } catch { /* 旧记录的媒体清单为空时仍显示其他记录。 */ }
-      archives.push({ id:article.id, archive_code:article.archive_code, title:article.title, items });
+      archives.push({ id:article.id, archive_code:article.archive_code, title:article.card_title || article.title, status:article.status, items });
     }
     return json({ archives, media });
   } catch { return json({ error:"media_unavailable" }, 503); }

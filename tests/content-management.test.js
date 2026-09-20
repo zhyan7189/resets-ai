@@ -10,7 +10,9 @@ import { onRequestGet as getItem } from "../functions/api/articles/item.js";
 import { onRequestPost as click } from "../functions/api/articles/click.js";
 import { onRequestGet as popular } from "../functions/api/articles/popular.js";
 import { extractMetadata } from "../functions/api/admin/import.js";
-import { extractArticleBody, extractXEmbed, onRequestPost as importLink } from "../functions/api/admin/import.js";
+import { extractArticleBody, extractXEmbed, mergeXEmbedBody, onRequestPost as importLink } from "../functions/api/admin/import.js";
+import { onRequestPost as reparseSource } from "../functions/api/admin/reparse.js";
+import { onRequestPost as restoreArchive } from "../functions/api/admin/restore.js";
 import { onRequestGet as overview } from "../functions/api/admin/overview.js";
 import { onRequestPost as reviewContent } from "../functions/api/admin/review.js";
 import { onRequestPost as trackVisit } from "../functions/api/analytics/visit.js";
@@ -80,6 +82,11 @@ test("媒体库按档案归组，包含没有素材的档案", async () => {
   assert.equal(response.status, 200);
   const { archives, media } = await response.json();
   assert.equal(archives.length, 2);
+  assert.deepEqual(archives.map((archive) => archive.archive_code), ["DA1", "DA2"]);
+  const list = await listAdmin({ request:request("/api/admin/articles?page_size=10", "GET", undefined, true), env });
+  assert.deepEqual((await list.json()).articles.map((article) => article.archive_code), ["DA1", "DA2"]);
+  const newest = await listAdmin({ request:request("/api/admin/articles?page_size=10&sort=newest", "GET", undefined, true), env });
+  assert.deepEqual((await newest.json()).articles.map((article) => article.archive_code), ["DA2", "DA1"]);
   assert.deepEqual(archives.map((archive) => archive.items.length).sort(), [0, 1]);
   assert.equal(media.length, 1);
   assert.equal(media[0].type, "cover");
@@ -159,8 +166,17 @@ test("内容管理分页、审核拒绝与通过、可恢复删除", async () =>
   const removed = await discard({ request:request("/api/admin/articles", "DELETE", { id, revision:4 }, true), env });
   assert.equal((await removed.json()).status, "discarded");
   assert.equal((await (await listPublic({ request:request("/api/articles"), env })).json()).articles.length, 0);
-  const restored = await update({ request:request("/api/admin/articles", "PUT", { ...sample, id, revision:5, status:"review" }, true), env });
+  const visible = await listAdmin({ request:request("/api/admin/articles", "GET", undefined, true), env });
+  assert.ok(!(await visible.json()).articles.some((article) => article.id === id));
+  const recycle = await listAdmin({ request:request("/api/admin/articles?status=discarded", "GET", undefined, true), env });
+  assert.equal((await recycle.json()).articles[0].archive_code, "DA1");
+  const mediaBeforeRestore = await listAdminMedia({ request:request("/api/admin/media", "GET", undefined, true), env });
+  assert.equal((await mediaBeforeRestore.json()).archives.find((article) => article.id === id).status, "discarded");
+  const restored = await restoreArchive({ request:request("/api/admin/restore", "POST", { id, revision:5 }, true), env });
   assert.equal(restored.status, 200);
+  assert.equal((await restored.json()).status, "published");
+  const mediaList = await listAdminMedia({ request:request("/api/admin/media", "GET", undefined, true), env });
+  assert.equal((await mediaList.json()).archives.find((article) => article.id === id).archive_code, "DA1");
   const events = await env.DB.prepare("SELECT action,note FROM review_events WHERE article_id=? ORDER BY revision").bind(id).all();
   assert.deepEqual(events.results.map((item) => item.action), ["reject","approve"]);
 });
@@ -209,6 +225,36 @@ test("X 官方嵌入文字可生成有来源的摘要，视频缩略图只用于
   assert.doesNotMatch(embed.summary, /pic\.twitter/);
   const metadata = extractMetadata('<meta property="og:image" content="https://pbs.twimg.com/amplify_video_thumb/123/img/x.jpg">', source);
   assert.equal(metadata.format, "video");
+  assert.equal(mergeXEmbedBody("![视频封面](https://pbs.twimg.com/amplify_video_thumb/123/img/x.jpg)", embed.body).startsWith(embed.body), true);
+});
+
+test("X 视频缩略图不会阻止原文与摘要提取，已有档案可无写入地重新解析", async () => {
+  const env = environment();
+  const source = "https://x.com/Hss1128_/status/2101250885955555508";
+  const image = "https://pbs.twimg.com/amplify_video_thumb/123/img/x.jpg";
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => String(url).includes("oembed") ?
+    Response.json({ url:source, author_name:"黄白", html:'<blockquote><p>用这个skill⬇️，可以做出这样的影视后期特效 #dreamina</p></blockquote>' }) :
+    new Response(`<article><img src="${image}"></article><meta property="og:image" content="${image}">`, { headers:{ "content-type":"text/html" } });
+  try {
+    const imported = await importLink({ request:request("/api/admin/import", "POST", { url:source }, true), env });
+    assert.equal(imported.status, 201);
+    const { id, draft } = await imported.json();
+    assert.match(draft.summary, /影视后期特效/);
+    assert.match(draft.original_body, /影视后期特效/);
+    assert.match(draft.original_body, /amplify_video_thumb/);
+    await env.DB.prepare("UPDATE articles SET summary='',original_body=?,body=? WHERE id=?").bind(`![](https://pbs.twimg.com/amplify_video_thumb/123/img/x.jpg)`, `![](https://pbs.twimg.com/amplify_video_thumb/123/img/x.jpg)`, id).run();
+    const parsed = await reparseSource({ request:request("/api/admin/reparse", "POST", { id }, true), env });
+    assert.equal(parsed.status, 200);
+    const refreshed = await parsed.json();
+    assert.match(refreshed.summary, /影视后期特效/);
+    assert.match(refreshed.original_body, /影视后期特效/);
+    assert.match(refreshed.body, /影视后期特效/);
+    const item = await getAdminItem({ request:request(`/api/admin/item?id=${id}`, "GET", undefined, true), env });
+    const stored = (await item.json()).article;
+    assert.equal(stored.revision, 1);
+    assert.equal(stored.summary, "");
+  } finally { globalThis.fetch = realFetch; }
 });
 
 test("抖音完整链接调用官方接口，生成可审核的视频草稿", async () => {
