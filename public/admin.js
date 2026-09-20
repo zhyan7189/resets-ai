@@ -18,6 +18,12 @@ let extractionState = "manual";
 let extractionNote = "";
 let adRows = [];
 let previewVideoValue = "";
+let mediaEntries = [];
+let operationsPage = 1;
+let operationsTotal = 0;
+let deleting = null;
+
+document.body.append($("editor"));
 
 function status(id, message, error = false) {
   const node = $(id);
@@ -39,8 +45,8 @@ async function api(path, options = {}) {
     }
     const labels = {
       unauthorized:"管理密钥无效或未配置", database_unconfigured:"尚未绑定 D1 数据库",
-      duplicate_url:"这条链接已经收录，请从内容库打开编辑", save_failed_or_duplicate_url:"保存失败：链接重复或数据库尚未升级",
-      import_save_failed:"导入结果无法入库，请检查 v2 数据库迁移", articles_unavailable:"内容列表不可用，请检查 v2 数据库迁移",
+      duplicate_url:"这条链接已经收录，请从档案管理打开编辑", save_failed_or_duplicate_url:"保存失败：链接重复或数据库尚未升级",
+      import_save_failed:"导入结果无法入库，请检查 v2 数据库迁移", articles_unavailable:"档案列表不可用，请检查 v2 数据库迁移",
       publication_fields_required:"发布前须填写标题、摘要、来源和作者", licensed_body_required:"授权转载须填写全文",
       rights_confirmation_required:"发布授权全文前请勾选授权与素材核对", embed_requires_video:"视频播放只适用于视频内容",
       embed_video_required:"请填写视频地址", video_not_playable:"当前仅支持 YouTube 或 HTTPS MP4 站内播放",
@@ -130,15 +136,14 @@ function fill(article = {}) {
   $("media-import-summary").textContent = !article.id ? "解析链接后，可获取的图片会自动保存到 R2。" :
     imageUrls.length ? `图片已存入 R2：${savedImages}/${imageUrls.length} 张。${savedImages < imageUrls.length ? "未入库的图片已保留原地址，请在发布前核对。" : ""}` :
     "来源页面未提取到可保存的图片。";
-  $("editor-title").textContent = editingId ? "编辑内容" : "新增内容";
+  $("editor-title").textContent = editingId ? `编辑档案 ${article.archive_code || ""}` : "新增档案";
   $("current-status").textContent = `当前：${statusNames[article.status] || "未保存"}${revision ? ` · 第 ${revision} 版` : ""}`;
   $("article-form").hidden = false;
   $("editor-empty").hidden = true;
-  $("editor").hidden = false;
   window.location.hash = "content";
   preview();
   loadVersions();
-  $("editor").scrollIntoView({ behavior:"smooth", block:"start" });
+  if (!$("editor").open) $("editor").showModal();
 }
 
 function preview() {
@@ -163,15 +168,24 @@ function preview() {
 function renderList() {
   const list = $("article-list");
   list.replaceChildren();
-  if (!entries.length) { const empty = document.createElement("p"); empty.className = "empty"; empty.textContent = "当前筛选下没有内容。"; list.append(empty); }
+  if (!entries.length) {
+    const row = document.createElement("tr"); const cell = document.createElement("td");
+    cell.colSpan = 8; cell.className = "empty"; cell.textContent = "当前筛选下没有档案。";
+    row.append(cell); list.append(row);
+  }
   for (const article of entries) {
-    const row = document.createElement("div"); row.className = "list-item content-item";
-    const info = document.createElement("div");
-    const title = document.createElement("strong"); title.textContent = article.card_title || article.title || article.source_url;
-    const meta = document.createElement("small");
+    const row = document.createElement("tr");
+    const cell = (value, className = "") => { const node = document.createElement("td"); node.textContent = value; node.className = className; row.append(node); return node; };
+    cell(article.archive_code || "—", "id-cell");
+    cell(article.card_title || article.title || article.source_url, "title-cell");
+    cell(article.author || "待补");
+    cell(article.format === "video" ? "视频" : "文章");
+    const statusCell = cell("");
     const badge = document.createElement("span"); badge.className = `status ${article.status}`; badge.textContent = statusNames[article.status] || article.status;
-    meta.append(badge, document.createTextNode([article.source_name, article.author, article.format === "video" ? "视频" : "文章", `${article.clicks || 0} 次阅读`, article.updated_at].filter(Boolean).join(" · ")));
-    info.append(title, meta);
+    statusCell.append(badge);
+    cell(article.created_at?.slice(0, 16) || "—");
+    cell(String(article.clicks || 0));
+    const actionCell = cell("");
     const actions = document.createElement("div"); actions.className = "list-actions";
     const view = document.createElement("button"); view.className = "button secondary"; view.type = "button"; view.textContent = "预览";
     view.addEventListener("click", () => openReviewPreview(article.id, false));
@@ -179,11 +193,7 @@ function renderList() {
     edit.addEventListener("click", async () => { edit.disabled = true; try { await openArticle(article.id); } catch (error) { status("import-status", error.message, true); } finally { edit.disabled = false; } });
     const remove = document.createElement("button"); remove.className = "button danger"; remove.type = "button"; remove.textContent = "删除";
     remove.disabled = article.status === "discarded";
-    remove.addEventListener("click", async () => {
-      if (!window.confirm(`将“${article.card_title || article.title}”移入已废弃？内容和历史版本可恢复。`)) return;
-      try { await api("/api/admin/articles", { method:"DELETE", body:JSON.stringify({ id:article.id, revision:article.revision }) }); await Promise.all([refreshList(), refreshReview(), refreshOverview()]); }
-      catch (error) { status("import-status", error.message, true); }
-    });
+    remove.addEventListener("click", () => { deleting = article; $("delete-summary").textContent = `${article.archive_code || "档案"} · ${article.card_title || article.title}`; status("delete-status", ""); $("delete-dialog").showModal(); });
     if (article.status === "published") {
       const archive = document.createElement("button"); archive.className = "button secondary"; archive.type = "button"; archive.textContent = "下架";
       archive.addEventListener("click", async () => {
@@ -193,7 +203,7 @@ function renderList() {
       });
       actions.append(archive);
     }
-    actions.append(view, edit, remove); row.append(info, actions); list.append(row);
+    actions.append(view, edit, remove); actionCell.append(actions); list.append(row);
   }
   const size = Number($("page-size").value);
   $("page-info").textContent = `共 ${contentTotal} 条 · 第 ${contentPage}/${Math.max(1, Math.ceil(contentTotal / size))} 页`;
@@ -225,19 +235,9 @@ async function refreshOverview() {
   drawChart("reads-chart", overview.analytics?.reads || [], "clicks", overview.analytics?.ready);
   drawRanks("heat-list", overview.analytics?.heat || [], (item) => `${item.clicks} 次点击`);
   drawRanks("ctr-list", overview.analytics?.ctr || [], (item) => `${(100 * item.clicks / item.impressions).toFixed(1)}% · ${item.impressions} 次曝光`);
-  $("popular-summary").textContent = overview.popular ? `${overview.popular.card_title || overview.popular.title} · ${overview.popular.clicks} 次阅读` : "暂无已发布文章点击数据";
   setHealth("d1", true, "正常");
   setHealth("r2", overview.integrations.r2, overview.integrations.r2 ? "已绑定" : "未绑定");
   setHealth("ai", overview.integrations.ai, overview.integrations.ai ? "已配置" : "未配置（可选）");
-  const jobs = $("job-list"); jobs.replaceChildren();
-  if (!overview.jobs.length) { const li = document.createElement("li"); li.textContent = "暂无导入任务"; jobs.append(li); }
-  for (const job of overview.jobs) {
-    const li = document.createElement("li");
-    const link = document.createElement("a"); link.href = "#editor"; link.textContent = `${job.adapter.toUpperCase()} · ${statusNames[job.current_status] || job.current_status}`;
-    link.addEventListener("click", async (event) => { event.preventDefault(); try { await openArticle(job.article_id); } catch (error) { status("import-status", error.message, true); } });
-    const detail = document.createElement("div"); detail.className = "help"; detail.textContent = job.note || job.source_url;
-    li.append(link, detail); jobs.append(li);
-  }
 }
 
 function setHealth(name, ok, label) {
@@ -257,10 +257,21 @@ function drawChart(id, points, key, ready) {
     return { day, value:values.get(day) || 0 };
   });
   const max = Math.max(1, ...days.map((item) => item.value));
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   for (const item of days) {
-    const bar = document.createElement("div"); bar.className = `chart-bar${key === "clicks" ? " read" : ""}`;
+    const bar = document.createElement("button"); bar.type = "button"; bar.className = `chart-bar${key === "clicks" ? " read" : ""}`;
     bar.style.height = `${Math.max(2, item.value / max * 100)}%`;
-    bar.title = `${item.day} · ${item.value} 次`;
+    bar.dataset.label = `${item.day} · ${item.value} 次`;
+    bar.setAttribute("aria-label", bar.dataset.label);
+    if (!reduceMotion) {
+      bar.addEventListener("pointermove", (event) => {
+        const rect = bar.getBoundingClientRect();
+        const offset = (event.clientX - rect.left) / rect.width - .5;
+        bar.style.setProperty("--tilt", `${(offset * 15).toFixed(1)}deg`);
+        bar.style.setProperty("--shift", `${(offset * 5).toFixed(1)}px`);
+      });
+      bar.addEventListener("pointerleave", () => { bar.style.removeProperty("--tilt"); bar.style.removeProperty("--shift"); });
+    }
     container.append(bar);
   }
 }
@@ -281,28 +292,66 @@ function drawRanks(id, items, valueText) {
 
 async function refreshMedia() {
   const data = await api("/api/admin/media");
+  mediaEntries = data.media || [];
+  renderMedia();
+}
+
+function renderMedia() {
   const list = $("media-list"); list.replaceChildren();
-  if (!data.media.length) { const empty = document.createElement("p"); empty.className = "empty"; empty.textContent = "还没有入库的素材。"; list.append(empty); return; }
-  const groups = new Map();
-  for (const item of data.media) {
-    if (!groups.has(item.article_id)) groups.set(item.article_id, []);
-    groups.get(item.article_id).push(item);
+  const type = $("media-type").value;
+  const storage = $("media-storage").value;
+  const query = $("media-query").value.trim().toLocaleLowerCase();
+  const rows = mediaEntries.filter((item) => (!type || item.type === type) && (!storage || item.storage === storage) &&
+    (!query || [item.archive_code, item.article_title, item.url].join(" ").toLocaleLowerCase().includes(query)));
+  for (const item of rows) {
+    const row = document.createElement("tr");
+    const add = (value, className = "") => { const cell = document.createElement("td"); cell.textContent = value; cell.className = className; row.append(cell); return cell; };
+    const preview = add("");
+    if (item.type === "video") preview.textContent = "▶";
+    else { const img = document.createElement("img"); img.src = item.url; img.alt = ""; img.loading = "lazy"; img.className = "media-thumb"; preview.append(img); }
+    add(item.type === "cover" ? "封面" : item.type === "video" ? "视频" : "正文图片");
+    add(item.archive_code || "—", "id-cell");
+    add(item.article_title || "未命名档案", "title-cell");
+    add(item.storage);
+    const address = add("");
+    const link = document.createElement("a"); link.href = item.url; link.target = "_blank"; link.rel = "noopener noreferrer"; link.className = "media-link"; link.textContent = item.url;
+    address.append(link); list.append(row);
   }
-  for (const items of groups.values()) {
-    const group = document.createElement("details"); group.className = "media-group";
-    const summary = document.createElement("summary");
-    const stored = items.filter((item) => item.storage === "R2").length;
-    summary.textContent = `${items[0].article_title || items[0].article_id} · ${items.length} 个媒体文件（R2 ${stored} / 外部 ${items.length - stored}）`;
-    group.append(summary);
-    for (const item of items) {
-      const row = document.createElement("div"); row.className = "media-file";
-      const kind = item.type === "cover" ? "封面" : item.type === "video" ? "视频" : "正文图片";
-      const link = document.createElement("a"); link.href = item.url; link.target = "_blank"; link.rel = "noopener noreferrer";
-      link.textContent = `${kind} · ${item.storage} · ${item.url}`;
-      row.append(link); group.append(row);
-    }
-    list.append(group);
+  if (!rows.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 6; cell.textContent = "没有匹配的素材。"; cell.className = "empty"; row.append(cell); list.append(row); }
+  $("media-count").textContent = `共 ${rows.length} 个素材 · R2 ${rows.filter((item) => item.storage === "R2").length} 个`;
+}
+
+async function refreshOperations() {
+  const params = new URLSearchParams({ q:$("operations-query").value.trim(), page:String(operationsPage) });
+  const data = await api(`/api/admin/operations?${params}`);
+  operationsTotal = Number(data.total || 0);
+  const list = $("operations-list"); list.replaceChildren();
+  for (const item of data.rows || []) {
+    const row = document.createElement("tr");
+    const add = (value, className = "") => { const cell = document.createElement("td"); cell.textContent = value; cell.className = className; row.append(cell); return cell; };
+    add(item.archive_code || "—", "id-cell"); add(item.card_title || item.title || "未命名档案", "title-cell");
+    add(statusNames[item.status] || item.status); add(item.created_at || "—");
+    add(`${Math.max(0, Number(item.retained_days) || 0)} 天`); add(String(item.clicks || 0));
+    const action = add(""); const button = document.createElement("button"); button.className = "button secondary"; button.type = "button"; button.textContent = "查看详情";
+    button.addEventListener("click", () => openOperationsDetail(item.id)); action.append(button); list.append(row);
   }
+  if (!data.rows?.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 7; cell.className = "empty"; cell.textContent = "没有匹配的档案。"; row.append(cell); list.append(row); }
+  $("operations-page-info").textContent = `共 ${operationsTotal} 条 · 第 ${operationsPage}/${Math.max(1, Math.ceil(operationsTotal / 20))} 页`;
+  $("operations-prev").disabled = operationsPage <= 1;
+  $("operations-next").disabled = operationsPage * 20 >= operationsTotal;
+}
+
+async function openOperationsDetail(id) {
+  try {
+    const data = await api(`/api/admin/operations?id=${encodeURIComponent(id)}`);
+    const list = $("operations-detail"); list.replaceChildren();
+    const line = (label, value) => { const item = document.createElement("div"); item.className = "media-file"; const title = document.createElement("strong"); title.textContent = `${label}：`; const text = document.createElement("span"); text.textContent = value || "—"; item.append(title, text); list.append(item); };
+    const item = data.article;
+    for (const [label, value] of [["档案 ID",item.archive_code],["档案名称",item.card_title || item.title],["状态",statusNames[item.status]],["生成时间",item.created_at],["留存时间",`${Math.max(0, Number(item.retained_days) || 0)} 天`],["累计阅读",String(item.clicks || 0)],["来源链接",item.source_url]]) line(label, value);
+    for (const event of data.reviews) line("审核记录",`${event.created_at} · ${event.action} · ${event.note || "无备注"}`);
+    for (const event of data.imports) line("导入记录",`${event.created_at} · ${event.adapter} · ${event.note || "无备注"}`);
+    $("operations-dialog").showModal();
+  } catch (error) { status("operations-status", error.message, true); }
 }
 
 function localDateValue(utc) {
@@ -319,7 +368,7 @@ function fillAdSlot() {
   for (const name of ["label","title","description","icon","target_url"]) form.elements.namedItem(name).value = ad[name] || "";
   for (const name of ["starts_at","ends_at"]) form.elements.namedItem(name).value = localDateValue(ad[name]);
   form.elements.namedItem("active").checked = Boolean(ad.active);
-  $("ad-editor").hidden = false;
+  if (!$("ad-editor").open) $("ad-editor").showModal();
   $("ad-editor-title").textContent = `${ad.slot ? "查看 / 编辑" : "创建"}广告位 ${slot}`;
   for (const button of document.querySelectorAll(".ad-spot")) button.classList.toggle("selected", Number(button.dataset.slot) === slot);
   status("ad-status", ad.slot ? `已载入广告位 ${slot}。` : `广告位 ${slot} 尚未配置。`);
@@ -333,7 +382,7 @@ async function refreshAds() {
     const live = ad?.active && (!ad.starts_at || ad.starts_at <= now) && (!ad.ends_at || ad.ends_at > now);
     button.querySelector("small").textContent = ad ? `${ad.title || "未命名"} · ${live ? "展示中" : ad.active ? "待展示或已到期" : "未启用"}` : "未配置 · 点击创建";
   }
-  if (!$("ad-editor").hidden) fillAdSlot();
+  if ($("ad-editor").open) fillAdSlot();
 }
 
 async function refreshResetHealth() {
@@ -370,18 +419,18 @@ async function refreshReview() {
   const data = await api(`/api/admin/articles?${params}`);
   reviewTotal = Number(data.total || 0);
   const list = $("review-list"); list.replaceChildren();
-  if (!data.articles.length) { const empty = document.createElement("p"); empty.className = "empty"; empty.textContent = "当前没有需要处理的内容。"; list.append(empty); }
+  if (!data.articles.length) { const empty = document.createElement("p"); empty.className = "empty"; empty.textContent = "当前没有需要处理的档案。"; list.append(empty); }
   for (const article of data.articles) {
     const row = document.createElement("div"); row.className = "list-item review-card";
     const info = document.createElement("div");
-    const title = document.createElement("strong"); title.textContent = article.card_title || article.title || article.source_url;
+    const title = document.createElement("strong"); title.textContent = `${article.archive_code || "档案"} · ${article.card_title || article.title || article.source_url}`;
     const details = document.createElement("small"); details.textContent = `${article.source_name || "来源待补"} · ${article.author || "作者待补"} · ${statusNames[article.status]} · ${article.updated_at || ""}`;
     info.append(title, details);
     const actions = document.createElement("div"); actions.className = "list-actions";
     const view = document.createElement("button"); view.className = "button secondary"; view.type = "button"; view.textContent = "预览阅读效果";
     view.addEventListener("click", () => openReviewPreview(article.id, article.status === "review"));
-    const edit = document.createElement("button"); edit.className = "button secondary"; edit.type = "button"; edit.textContent = "修改内容";
-    edit.addEventListener("click", () => openArticle(article.id));
+    const edit = document.createElement("button"); edit.className = "button secondary"; edit.type = "button"; edit.textContent = "编辑档案";
+    edit.addEventListener("click", () => openArticle(article.id).catch((error) => status("review-status", error.message, true)));
     actions.append(view, edit); row.append(info, actions); list.append(row);
   }
   $("review-page-info").textContent = `共 ${reviewTotal} 条 · 第 ${reviewPage}/${Math.max(1, Math.ceil(reviewTotal / 20))} 页`;
@@ -422,8 +471,8 @@ async function submitReview(action, note = "") {
   try {
     await api("/api/admin/review", { method:"POST", body:JSON.stringify({ id:article.id, revision:article.revision, action, note }) });
     $("review-dialog").close(); reviewing = null;
-    status("review-status", action === "approve" ? "审核通过，内容已发布。" : "已拒绝，内容进入未通过列表。");
-    await Promise.all([refreshReview(), refreshList(), refreshOverview()]);
+    status("review-status", action === "approve" ? "审核通过，档案已发布。" : "已拒绝，档案进入未通过列表。");
+    await Promise.all([refreshReview(), refreshList(), refreshOverview(), refreshOperations()]);
   } catch (error) { status("review-dialog-status", error.message, true); }
 }
 
@@ -433,13 +482,13 @@ async function openWorkspace() {
   if (!token) { window.location.replace("/login"); return; }
   try {
     await api("/api/admin/auth");
-    const results = await Promise.allSettled([refreshList(), refreshReview(), refreshOverview(), refreshMedia(), refreshAds()]);
+    const results = await Promise.allSettled([refreshList(), refreshReview(), refreshOverview(), refreshMedia(), refreshOperations(), refreshAds()]);
     $("workspace").hidden = false;
     const failures = results.filter((result) => result.status === "rejected");
     $("preview-banner").hidden = failures.length === 0;
     if (failures.length) $("preview-banner").textContent = `部分数据暂不可用：${[...new Set(failures.map((result) => result.reason?.message || "加载失败"))].join("；")}。`;
     $("import").disabled = results[0].status !== "fulfilled";
-    $("ad-form").querySelector("button[type=submit]").disabled = results[4].status !== "fulfilled";
+    $("ad-form").querySelector("button[type=submit]").disabled = results[5].status !== "fulfilled";
     if (results[2].status !== "fulfilled") setHealth("d1", false, "未连接或未升级");
     refreshResetHealth();
     syncNavigation();
@@ -447,24 +496,26 @@ async function openWorkspace() {
 }
 
 $("logout").addEventListener("click", () => { sessionStorage.removeItem(sessionKey); token = ""; window.location.replace("/login"); });
-$("new-content").addEventListener("click", () => { $("new-choices").hidden = !$("new-choices").hidden; $("import-panel").hidden = true; });
+$("new-content").addEventListener("click", () => { $("new-choices").hidden = false; $("import-panel").hidden = true; $("new-dialog").showModal(); });
+$("new-close").addEventListener("click", () => $("new-dialog").close());
 $("choose-link").addEventListener("click", () => { $("import-panel").hidden = false; $("new-choices").hidden = true; $("import-url").focus(); });
-$("manual").addEventListener("click", () => { $("new-choices").hidden = true; fill({ format:"article", category:"opportunity", rights:"licensed", status:"draft" }); status("import-status", "已打开空白录入表单。填写后保存并提交审核。 "); });
-$("close-editor").addEventListener("click", () => { $("editor").hidden = true; $("article-form").hidden = true; });
+$("manual").addEventListener("click", () => { $("new-dialog").close(); fill({ format:"article", category:"opportunity", rights:"licensed", status:"draft" }); status("save-status", "已打开空白录入表单。填写后保存并提交审核。"); });
+$("close-editor").addEventListener("click", () => $("editor").close());
 
 $("import").addEventListener("click", async () => {
   const url = $("import-url").value.trim();
-  if (!url) return status("import-status", "请先粘贴链接。", true);
-  $("import").disabled = true; status("import-status", "正在提取原文并将可获取的图片保存到 R2…");
+  if (!url) return status("new-status", "请先粘贴链接。", true);
+  $("import").disabled = true; status("new-status", "正在提取原文并将可获取的图片保存到 R2…");
   try {
     const result = await api("/api/admin/import", { method:"POST", body:JSON.stringify({ url }) });
+    $("new-dialog").close();
     fill(result.draft);
     const mediaStatus = result.media?.total ? `图片已自动存入 R2：${result.media.saved}/${result.media.total} 张。` : "来源页面未提取到图片。";
-    status("import-status", result.issues.length ? `${mediaStatus}已保存到“需协助”：${result.issues.join("；")}` : `${mediaStatus}已保存到“待审核”。请核对原文与素材。`);
-    await Promise.all([refreshList(), refreshReview(), refreshOverview(), refreshMedia()]);
+    status("save-status", result.issues.length ? `${mediaStatus}已保存到“需协助”：${result.issues.join("；")}` : `${mediaStatus}已保存到“待审核”。请核对原文与素材。`);
+    await Promise.all([refreshList(), refreshReview(), refreshOverview(), refreshMedia(), refreshOperations()]);
   } catch (error) {
-    status("import-status", error.message, true);
-    if (error.code === "duplicate_url" && error.articleId) await openArticle(error.articleId);
+    status("new-status", error.message, true);
+    if (error.code === "duplicate_url" && error.articleId) { $("new-dialog").close(); await openArticle(error.articleId); }
   } finally { $("import").disabled = false; }
 });
 
@@ -476,6 +527,23 @@ for (const id of ["filter-query","filter-format","filter-status","page-size"]) $
 });
 $("page-prev").addEventListener("click", () => { if (contentPage > 1) { contentPage--; refreshList(); } });
 $("page-next").addEventListener("click", () => { if (contentPage * Number($("page-size").value) < contentTotal) { contentPage++; refreshList(); } });
+$("delete-cancel").addEventListener("click", () => $("delete-dialog").close());
+$("delete-confirm").addEventListener("click", async () => {
+  if (!deleting) return;
+  const button = $("delete-confirm"); button.disabled = true;
+  try {
+    await api("/api/admin/articles", { method:"DELETE", body:JSON.stringify({ id:deleting.id, revision:deleting.revision }) });
+    $("delete-dialog").close(); deleting = null;
+    await Promise.all([refreshList(), refreshReview(), refreshOverview(), refreshOperations()]);
+  } catch (error) { status("delete-status", error.message, true); }
+  finally { button.disabled = false; }
+});
+for (const id of ["media-query","media-type","media-storage"]) $(id).addEventListener(id === "media-query" ? "input" : "change", renderMedia);
+let operationsTimer;
+$("operations-query").addEventListener("input", () => { operationsPage = 1; clearTimeout(operationsTimer); operationsTimer = setTimeout(() => refreshOperations().catch((error) => status("operations-status", error.message, true)), 250); });
+$("operations-prev").addEventListener("click", () => { if (operationsPage > 1) { operationsPage--; refreshOperations(); } });
+$("operations-next").addEventListener("click", () => { if (operationsPage * 20 < operationsTotal) { operationsPage++; refreshOperations(); } });
+$("operations-close").addEventListener("click", () => $("operations-dialog").close());
 for (const tab of document.querySelectorAll("[data-review-filter]")) tab.addEventListener("click", () => {
   reviewFilter = tab.dataset.reviewFilter; reviewPage = 1;
   for (const other of document.querySelectorAll("[data-review-filter]")) other.classList.toggle("active", other === tab);
@@ -490,8 +558,9 @@ $("reject-confirm").addEventListener("click", () => { const note = $("reject-rea
 
 for (const button of document.querySelectorAll(".ad-spot")) button.addEventListener("click", () => {
   $("ad-form").elements.namedItem("slot").value = button.dataset.slot;
-  fillAdSlot(); $("ad-editor").scrollIntoView({ behavior:"smooth", block:"start" });
+  fillAdSlot();
 });
+$("ad-close").addEventListener("click", () => $("ad-editor").close());
 $("ad-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const adForm = event.currentTarget;
@@ -522,7 +591,7 @@ form.addEventListener("submit", async (event) => {
     editingId = result.id; revision = result.revision;
     status("save-status", `${statusNames[requestedStatus]}已保存。${requestedStatus === "review" ? "请到审核管理预览并审核。" : ""}`);
     $("current-status").textContent = `当前：${statusNames[requestedStatus]} · 第 ${revision} 版`;
-    await Promise.all([refreshList(), refreshReview(), refreshOverview(), refreshMedia()]);
+    await Promise.all([refreshList(), refreshReview(), refreshOverview(), refreshMedia(), refreshOperations()]);
     await loadVersions();
   } catch (error) { status("save-status", error.message, true); }
   finally { button.disabled = false; }
@@ -530,7 +599,7 @@ form.addEventListener("submit", async (event) => {
 
 const sectionLinks = [...document.querySelectorAll('.nav-link[href^="#"]')];
 const views = [...document.querySelectorAll('.view')];
-const pageDescriptions = { dashboard:"内容与访问数据概览", content:"搜索、创建和编辑全部内容", review:"预览后人工审核内容", "media-panel":"查看各内容引用的媒体", operations:"热度与导入任务", "ads-panel":"四个固定广告位" };
+const pageDescriptions = { dashboard:"档案与访问数据概览", content:"搜索、创建和编辑全部档案", review:"预览后人工审核档案", "media-panel":"搜索各档案引用的媒体", operations:"档案留存与处理记录", "ads-panel":"四个固定广告位" };
 function syncNavigation() {
   let name = (window.location.hash || "#dashboard").slice(1);
   if (name === "editor") name = "content";
@@ -543,6 +612,7 @@ function syncNavigation() {
   }
   $("page-title").textContent = sectionLinks.find((link) => link.getAttribute("href") === `#${name}`)?.textContent.trim() || "驾驶舱";
   $("page-description").textContent = pageDescriptions[name];
+  $("dashboard-actions").hidden = name !== "dashboard";
 }
 window.addEventListener("hashchange", syncNavigation);
 syncNavigation();

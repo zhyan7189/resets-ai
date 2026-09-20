@@ -31,6 +31,17 @@ npx wrangler d1 execute resets-ai --remote --file=db/migrations/002-dashboard-an
 
 执行后，在 D1 控制台确认 `site_visits_daily`、`article_metrics_daily`、`review_events` 已出现，再部署新版代码。生产环境的 Pages 项目仍需保持 `DB`、`MEDIA` 和加密的 `ADMIN_TOKEN` 绑定。
 
+### 读者账号与档案编号升级
+
+现有生产库完成 001、002 后，先建立 D1 恢复点或导出备份，再执行 [003-reader-archives.sql](db/migrations/003-reader-archives.sql)。这会为旧档案按创建时间补永久 `DA` 编号，并创建读者账号、会话和登录尝试表；不删除现有档案。全新空库直接使用 `db/schema.sql`，无需再执行 003。
+
+```sh
+npx wrangler d1 export resets-ai --remote --output /private/tmp/resets-ai-before-003.sql
+npx wrangler d1 execute resets-ai --remote --file=db/migrations/003-reader-archives.sql
+```
+
+执行后检查 `archive_ids`、`reader_users`、`reader_sessions`、`reader_attempts` 四张表，再部署新版代码。访客只可读取最近发布的 1 篇档案，已注册读者不限篇数；管理员仍使用 `ADMIN_TOKEN` 登录，不与读者账号混用。注册与登录有基于访客 IP 的尝试次数限制，正式开放注册时仍建议在 Cloudflare 配置额外的机器人防护。
+
 后台 API 会校验 `ADMIN_TOKEN`；建议再用 Cloudflare Access 对 `/admin` 和 `/api/admin/*` 设置仅管理员可访问。公开页面只读取状态为 `published` 的记录。授权全文转载由管理员确认；导入链接会尝试提取可访问的正文和图片，无法完整取得时进入“需协助”，不会擅自补写或发布。R2 不可用时外部图片需要人工核对。
 
 未绑定 D1 时，本地预览会使用浏览器本地点击记录，不影响页面查看；后台会明确提示数据库未配置。

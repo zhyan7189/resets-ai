@@ -90,7 +90,9 @@ function localPopularArticle() {
 
 function renderPopularArticle(article, clicks = 0) {
   const card = $("popular-article");
-  if (!card || !article) return;
+  if (!card) return;
+  card.hidden = !article;
+  if (!article) return;
   popularArticle = article;
   card.href = article.url;
   card.target = "_self";
@@ -115,6 +117,7 @@ function renderPopularArticle(article, clicks = 0) {
 
 async function loadPopularArticle() {
   const local = localPopularArticle();
+  if (!local) { renderPopularArticle(null); return; }
   try {
     const response = await fetch("/api/articles/popular", { headers:{ accept:"application/json" }, cache:"no-store" });
     if (!response.ok) throw new Error("热度接口暂不可用");
@@ -473,6 +476,7 @@ async function loadPublishedArticles() {
     const response = await fetch("/api/articles", { headers:{ accept:"application/json" }, cache:"no-store" });
     if (!response.ok) return;
     const data = await response.json();
+    if (data.articles?.length) articles.length = 0;
     for (const row of data.articles || []) {
       if (articles.some((item) => item.id === row.id || item.url === row.source_url)) continue;
       articles.unshift({
@@ -485,6 +489,9 @@ async function loadPublishedArticles() {
     }
     renderArticles(activeArticleFilter);
     loadPopularArticle();
+    $("reader-access").innerHTML = data.limited
+      ? '访客可阅读最新 1 篇档案。<a href="/register.html">注册后阅读全部档案 ↗</a>'
+      : '已登录读者账号，可阅读全部已发布档案。';
   } catch {
     // 数据库未绑定时保留原有人工整理卡片。
   }
@@ -664,7 +671,7 @@ async function openArticleReader(article) {
   if (article.articleType === "database") {
     try {
       const response = await fetch(`/api/articles/item?id=${encodeURIComponent(article.id)}`, { cache:"no-store" });
-      if (!response.ok) throw new Error("文章暂时无法读取");
+      if (!response.ok) throw new Error(response.status === 403 ? "这篇档案需要读者账号。请注册或登录后阅读。" : "文章暂时无法读取");
       const { article:record } = await response.json();
       if (requestId !== readerRequest) return;
       $("reader-title").textContent = record.title;
@@ -703,7 +710,12 @@ async function openArticleReader(article) {
         $("reader-note").textContent = "本站导读 · 原始内容由作者发布。";
       }
     } catch (error) {
-      if (requestId === readerRequest) appendStoredBody(error.message, body);
+      if (requestId === readerRequest) {
+        appendStoredBody(error.message, body);
+        if (error.message.includes("读者账号")) {
+          const link = document.createElement("a"); link.href = "/register.html"; link.textContent = "注册读者账号 ↗"; body.append(link);
+        }
+      }
     }
     return;
   }
@@ -812,6 +824,25 @@ $("article-reader")?.addEventListener("click", (event) => {
   if (event.target === event.currentTarget) closeArticleReader();
 });
 $("popular-article")?.addEventListener("click", handlePopularArticleClick);
+async function refreshReaderSession() {
+  try {
+    const response = await fetch("/api/reader/session", { cache:"no-store" });
+    const session = await response.json();
+    if (!response.ok) return;
+    $("reader-register").hidden = session.logged_in;
+    $("reader-login").hidden = session.logged_in;
+    $("reader-logout").hidden = !session.logged_in;
+    if (session.logged_in) $("reader-logout").title = `当前读者：${session.username}`;
+  } catch { /* 会话状态暂不可用时仍显示登录入口。 */ }
+}
+$("reader-logout").addEventListener("click", async () => {
+  try {
+    const response = await fetch("/api/reader/logout", { method:"POST", cache:"no-store" });
+    if (!response.ok) throw new Error("退出失败");
+    location.reload();
+  } catch { $("reader-access").textContent = "退出失败，请稍后重试。"; }
+});
+refreshReaderSession();
 syncReminderButton();
 $("notify-button").addEventListener("click", toggleReminder);
 $("reset-plea-button").addEventListener("click", pleadForReset);

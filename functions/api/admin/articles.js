@@ -23,14 +23,14 @@ export async function onRequestGet({ request, env }) {
     const format = params.get("format") || "";
     if (["article","video"].includes(format)) { filters.push("a.format=?"); values.push(format); }
     const query = (params.get("q") || "").trim().slice(0, 100);
-    if (query) { filters.push("(a.title LIKE ? OR a.card_title LIKE ? OR a.author LIKE ? OR a.source_url LIKE ?)"); values.push(...Array(4).fill(`%${query}%`)); }
+    if (query) { filters.push("(a.title LIKE ? OR a.card_title LIKE ? OR a.author LIKE ? OR a.source_url LIKE ? OR ('DA' || ai.number) LIKE ?)"); values.push(...Array(5).fill(`%${query}%`)); }
     const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
-    const count = await env.DB.prepare(`SELECT COUNT(*) AS total FROM articles a ${where}`).bind(...values).first();
-    const result = await env.DB.prepare(`SELECT a.id, a.source_url, a.source_name, a.author, a.published_at, a.format,
+    const count = await env.DB.prepare(`SELECT COUNT(*) AS total FROM articles a LEFT JOIN archive_ids ai ON ai.article_id=a.id ${where}`).bind(...values).first();
+    const result = await env.DB.prepare(`SELECT a.id, 'DA' || ai.number AS archive_code, a.created_at, a.source_url, a.source_name, a.author, a.published_at, a.format,
       a.category, a.rights, a.status, a.title, a.card_title, a.summary, a.cover_url, a.video_url,
       a.extraction_state, a.extraction_note, a.revision, a.updated_at,
       COALESCE(c.clicks, 0) AS clicks
-      FROM articles a LEFT JOIN article_clicks c ON c.article_id = a.id
+      FROM articles a LEFT JOIN archive_ids ai ON ai.article_id = a.id LEFT JOIN article_clicks c ON c.article_id = a.id
       ${where} ORDER BY a.updated_at DESC LIMIT ? OFFSET ?`).bind(...values, pageSize, (page - 1) * pageSize).all();
     return json({ articles:result.results || [], total:count?.total || 0, page, page_size:pageSize });
   } catch { return json({ error:"articles_unavailable" }, 503); }

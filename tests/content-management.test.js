@@ -78,7 +78,7 @@ test("后台鉴权、草稿隔离、发布、下架和热度筛选", async () =>
   const saved = await create({ request:request("/api/admin/articles", "POST", sample, true), env });
   assert.equal(saved.status, 201);
   const { id } = await saved.json();
-  assert.equal((await (await listPublic({ env })).json()).articles.length, 0);
+  assert.equal((await (await listPublic({ request:request("/api/articles"), env })).json()).articles.length, 0);
   assert.equal((await getItem({ request:request(`/api/articles/item?id=${id}`), env })).status, 404);
   const adminList = (await (await listAdmin({ request:request("/api/admin/articles", "GET", undefined, true), env })).json()).articles;
   assert.equal(adminList.length, 1);
@@ -87,14 +87,14 @@ test("后台鉴权、草稿隔离、发布、下架和热度筛选", async () =>
 
   const published = await update({ request:request("/api/admin/articles", "PUT", { ...sample, id, status:"published" }, true), env });
   assert.equal(published.status, 200);
-  assert.equal((await (await listPublic({ env })).json()).articles[0].id, id);
+  assert.equal((await (await listPublic({ request:request("/api/articles"), env })).json()).articles[0].id, id);
   assert.equal((await getItem({ request:request(`/api/articles/item?id=${id}`), env })).status, 200);
   await click({ request:request("/api/articles/click", "POST", { article_id:id }), env });
   assert.equal((await (await popular({ env })).json()).article_id, id);
 
   const unpublished = await update({ request:request("/api/admin/articles", "PUT", { ...sample, id, status:"draft" }, true), env });
   assert.equal(unpublished.status, 200);
-  assert.equal((await (await listPublic({ env })).json()).articles.length, 0);
+  assert.equal((await (await listPublic({ request:request("/api/articles"), env })).json()).articles.length, 0);
   assert.equal((await (await popular({ env })).json()).article_id, null);
   const history = (await (await versions({ request:request(`/api/admin/versions?id=${id}`, "GET", undefined, true), env })).json()).versions;
   assert.deepEqual(history.map((item) => item.revision), [3,2,1]);
@@ -123,7 +123,7 @@ test("内容管理分页、审核拒绝与通过、可恢复删除", async () =>
   assert.equal((await approved.json()).status, "published");
   const removed = await discard({ request:request("/api/admin/articles", "DELETE", { id, revision:4 }, true), env });
   assert.equal((await removed.json()).status, "discarded");
-  assert.equal((await (await listPublic({ env })).json()).articles.length, 0);
+  assert.equal((await (await listPublic({ request:request("/api/articles"), env })).json()).articles.length, 0);
   const restored = await update({ request:request("/api/admin/articles", "PUT", { ...sample, id, revision:5, status:"review" }, true), env });
   assert.equal(restored.status, 200);
   const events = await env.DB.prepare("SELECT action,note FROM review_events WHERE article_id=? ORDER BY revision").bind(id).all();
@@ -212,7 +212,7 @@ test("X 作者头像不会被当成正文配图，已发布旧记录也会过滤
   assert.equal(stripXProfileImages(body, source), `正文内容。\n\n![配图](${photo})`);
   assert.equal(stripXProfileImages(body, "https://example.org/post"), body);
   assert.equal(cleanArticle({ ...sample, source_url:source, rights:"licensed", body }).article.body, `正文内容。\n\n![配图](${photo})`);
-  const env = { DB:{ prepare() { return { bind() { return { first:async () => ({ ...sample, id:"old-x-article", source_url:source, body, cover_url:"", video_url:"", status:"published" }) }; } }; } } };
+  const env = { DB:{ prepare() { return { all:async () => ({ results:[{ id:"old-x-article" }] }), bind() { return { first:async () => ({ ...sample, id:"old-x-article", source_url:source, body, cover_url:"", video_url:"", status:"published" }) }; } }; } } };
   const response = await getItem({ request:request("/api/articles/item?id=old-x-article"), env });
   const { article } = await response.json();
   assert.equal(article.body, `正文内容。\n\n![配图](${photo})`);

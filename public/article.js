@@ -55,7 +55,7 @@ async function main() {
   const id = new URLSearchParams(location.search).get("id") || "";
   if (!/^[a-z0-9-]{1,120}$/.test(id)) throw new Error("文章链接无效");
   const response = await fetch(`/api/articles/item?id=${encodeURIComponent(id)}`, { cache:"no-store" });
-  if (!response.ok) throw new Error(response.status === 404 ? "这篇文章已下架或尚未发布" : "暂时无法读取文章");
+  if (!response.ok) throw new Error(response.status === 403 ? "请先注册或登录读者账号，再阅读这篇档案" : response.status === 404 ? "这篇文章已下架或尚未发布" : "暂时无法读取文章");
   const { article } = await response.json();
   document.title = `${article.title} · Resets AI`;
   $("category").textContent = `${categories[article.category] || "AI 赚钱情报"} · ${article.format === "video" ? "视频" : "文章"}`;
@@ -101,4 +101,10 @@ main().catch((error) => {
   $("category").textContent = "读取失败";
   $("title").textContent = error.message;
   $("title").classList.add("error");
+  if (error.message.includes("读者账号")) {
+    const link = document.createElement("a");
+    link.href = `/register.html?next=${encodeURIComponent(location.pathname + location.search)}`;
+    link.textContent = "注册并阅读 ↗";
+    $("body").append(link);
+  }
 });

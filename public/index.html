@@ -23,6 +23,10 @@
       .mast-spacer { flex:1; }
       .mast-nav { display:flex; align-items:center; gap:10px; }
       .nav-pill { background:var(--card); border:2px solid var(--ink); border-radius:999px; padding:8px 13px; text-decoration:none; font-weight:700; font-size:13px; box-shadow:2px 2px 0 var(--ink); }
+      .nav-pill[hidden] { display:none; }
+      button.nav-pill { cursor:pointer; color:var(--ink); }
+      .reader-access { margin:0 0 12px; color:var(--muted); font-size:12px; line-height:1.5; }
+      .reader-access a { font-weight:800; text-underline-offset:2px; }
       .intro { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:30px 0 17px; }
       .intro-copy { margin:0; font-size:17px; line-height:1.55; color:#51483e; }
       .intro-copy strong { color:var(--ink); }
@@ -215,9 +219,9 @@
       .reset-plea-count { font-size:12px; }
       @media(max-width:700px) { .reset-main { grid-template-columns:1fr; gap:20px; } .reset-side { border-left:0; border-top:2px solid var(--ink); padding:19px 0 0; } }
       @media(max-width:1230px) { .rail { display:none; } }
-      @media(max-width:700px) { .shell { width:min(100% - 28px,808px); padding-top:18px; } .brand { font-size:30px; } .brand-sub,.mast .nav-pill:nth-last-child(2),.signal { display:none; } .intro { margin:22px 0 15px; } .reset-card { padding:23px 20px; } .reset-number { font-size:58px; } .reset-main { align-items:center; gap:16px; } .reset-side { padding:19px 0 0; } .heat-scroll { overflow-x:auto; } .history-row { grid-template-columns:78px 1fr 18px; gap:9px; padding:11px; } .feature { grid-template-columns:1fr; } .feature-art { min-height:105px; } .article-grid { grid-template-columns:1fr; } .cell-tooltip { padding:13px 16px 14px; } .cell-tooltip-date { font-size:15px; } .cell-tooltip-copy { font-size:13px; } }
+      @media(max-width:700px) { .shell { width:min(100% - 28px,808px); padding-top:18px; } .brand { font-size:30px; } .brand-sub,.signal { display:none; } .intro { margin:22px 0 15px; } .reset-card { padding:23px 20px; } .reset-number { font-size:58px; } .reset-main { align-items:center; gap:16px; } .reset-side { padding:19px 0 0; } .heat-scroll { overflow-x:auto; } .history-row { grid-template-columns:78px 1fr 18px; gap:9px; padding:11px; } .feature { grid-template-columns:1fr; } .feature-art { min-height:105px; } .article-grid { grid-template-columns:1fr; } .cell-tooltip { padding:13px 16px 14px; } .cell-tooltip-date { font-size:15px; } .cell-tooltip-copy { font-size:13px; } }
       @media(max-width:700px) { .article-tools { display:block; } .article-search { width:100%; margin-top:12px; } }
-      @media(max-width:700px) { .mast { flex-wrap:wrap; } .mast-nav { width:100%; justify-content:flex-end; } .mast .mast-nav .nav-history { display:none; } .mast .mast-nav .nav-pill:nth-last-child(2) { display:inline-block; } }
+      @media(max-width:700px) { .mast { flex-wrap:wrap; } .mast-nav { width:100%; justify-content:flex-end; } .mast .mast-nav .nav-history { display:none; } .mast-nav { flex-wrap:wrap; gap:6px; } .mast-nav .nav-pill { padding:6px 9px; font-size:11px; } }
       @media(max-width:700px) { .article-reader-panel { padding:20px 17px 18px; border-radius:14px; } .reader-title { font-size:24px; } .reader-cover { max-height:210px; } .reader-footer { align-items:flex-start; flex-direction:column; } }
     </style>
   </head>
@@ -235,7 +239,7 @@
         <img class="avatar" src="/thsottiaux-avatar.jpg" alt="" />
         <div><div class="brand">Resets AI</div><div class="brand-sub">CODEX 重置动态 · AI 机会情报</div></div>
         <div class="mast-spacer"></div>
-        <nav class="mast-nav" aria-label="页面导航"><a class="nav-pill nav-history" href="#history">重置历史</a><a class="nav-pill" href="#news">AI 赚钱情报</a><a class="nav-pill" href="/login">控制台</a></nav>
+        <nav class="mast-nav" aria-label="页面导航"><a class="nav-pill nav-history" href="#history">重置历史</a><a class="nav-pill" href="#news">AI 赚钱情报</a><a class="nav-pill" href="/register.html" id="reader-register">注册</a><a class="nav-pill" href="/reader-login.html" id="reader-login">读者登录</a><button class="nav-pill" id="reader-logout" type="button" hidden>退出读者账号</button><a class="nav-pill" href="/login">控制台</a></nav>
       </header>
       <main>
         <div class="intro"><p class="intro-copy"><strong>关注 Codex 重置公告，</strong>也发现值得实践的 AI 机会。</p><span class="signal"><i></i>公开公告追踪中</span></div>
@@ -261,6 +265,7 @@
         <div class="divider"><span>从重置消息，走向下一次机会</span></div>
         <section id="news">
           <div class="content-intro"><div><h2>AI 赚钱情报</h2><p>筛选值得关注的资讯，整理能照着做的教程。</p></div><span class="demo">人工整理 · 原文可查</span></div>
+          <p class="reader-access" id="reader-access">访客可阅读最新 1 篇档案。<a href="/register.html">注册后阅读全部档案 ↗</a></p>
           <a class="feature" id="popular-article" href="#news" aria-label="正在读取热度榜首文章"><div><span class="tag" id="popular-label">热度榜首 · 正在读取</span><h3 id="popular-title">正在读取热度最高的文章…</h3><p id="popular-summary">每小时根据文章点击量更新。</p><span class="popular-source" id="popular-source"></span></div><div class="feature-art" id="popular-art">热度 #1</div></a>
           <div class="article-tools"><div class="tabs" role="group" aria-label="内容分类"><button class="tab" type="button" data-filter="all" aria-pressed="true">全部内容</button><button class="tab" type="button" data-filter="opportunity" aria-pressed="false">机会资讯</button><button class="tab" type="button" data-filter="tutorial" aria-pressed="false">实操教程</button><button class="tab" type="button" data-filter="tools" aria-pressed="false">工具观察</button><button class="tab" type="button" data-filter="case" aria-pressed="false">创业案例</button><button class="tab" type="button" data-filter="pitfall" aria-pressed="false">避坑经验</button></div><input class="article-search" id="article-search" type="search" placeholder="搜索文章" aria-label="搜索文章" /></div>
           <div class="article-grid" id="article-grid"></div>
