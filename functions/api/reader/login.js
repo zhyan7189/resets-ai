@@ -10,7 +10,7 @@ export async function onRequestPost({ request, env }) {
     const input = await request.json();
     const username = String(input.username || "").trim();
     const password = String(input.password || "");
-    if (username.length > 24 || password.length > 128) return json({ error:"invalid_credentials" }, 401);
+    if (username.length > 24) return json({ error:"invalid_credentials" }, 401);
     const user = await env.DB.prepare("SELECT id,username,password_hash,password_salt FROM reader_users WHERE username=? COLLATE NOCASE").bind(username).first();
     if (!user || !sameHash(await passwordHash(password, user.password_salt), user.password_hash)) return json({ error:"invalid_credentials" }, 401);
     const response = json({ username:user.username });

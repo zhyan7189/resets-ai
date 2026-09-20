@@ -2,7 +2,7 @@ const mode = document.body.dataset.mode;
 const form = document.getElementById("account-form");
 const status = document.getElementById("status");
 const submit = document.getElementById("submit");
-const labels = { invalid_username:"用户名须为 3–24 位英文、数字或下划线，不能使用 admin。", invalid_password:"密码须为 12–128 个字符。", username_taken:"用户名已被使用。", invalid_credentials:"用户名或密码错误。", too_many_attempts:"尝试次数过多，请稍后再试。", database_unconfigured:"数据库尚未配置。" };
+const labels = { invalid_username:"用户名须为 3–24 位英文、数字或下划线，不能使用 admin。", invalid_password:"密码长度必须大于 6 位。", username_taken:"用户名已被使用。", invalid_credentials:"用户名或密码错误。", too_many_attempts:"尝试次数过多，请稍后再试。", database_unconfigured:"数据库尚未配置。" };
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   submit.disabled = true;

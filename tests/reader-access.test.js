@@ -63,6 +63,15 @@ test("读者登录拒绝错误密码与跨站请求，档案 ID 稳定且运营�
   assert.equal((await response.json()).rows[0].archive_code, "DA1");
 });
 
+test("注册密码至少七位，不限制字符类型或 128 位上限", async () => {
+  const { env } = fixture();
+  assert.equal((await register({ request:post("/api/reader/register", { username:"reader_short", password:"123456" }), env })).status, 400);
+  assert.equal((await register({ request:post("/api/reader/register", { username:"reader_seven", password:"1234567" }), env })).status, 201);
+  const longPassword = "文".repeat(129);
+  assert.equal((await register({ request:post("/api/reader/register", { username:"reader_long", password:longPassword }), env })).status, 201);
+  assert.equal((await login({ request:post("/api/reader/login", { username:"reader_long", password:longPassword }), env })).status, 200);
+});
+
 test("003 迁移为旧档案补永久编号，重复执行不改变编号", () => {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec("CREATE TABLE articles(id TEXT PRIMARY KEY,created_at TEXT NOT NULL)");

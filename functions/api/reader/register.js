@@ -11,7 +11,7 @@ export async function onRequestPost({ request, env }) {
     const username = String(input.username || "").trim();
     const password = String(input.password || "");
     if (!/^[a-zA-Z0-9_]{3,24}$/.test(username) || username.toLowerCase() === "admin") return json({ error:"invalid_username" }, 400);
-    if (password.length < 12 || password.length > 128) return json({ error:"invalid_password" }, 400);
+    if (password.length <= 6) return json({ error:"invalid_password" }, 400);
     const salt = [...crypto.getRandomValues(new Uint8Array(16))].map((byte) => byte.toString(16).padStart(2, "0")).join("");
     const id = crypto.randomUUID();
     await env.DB.prepare("INSERT INTO reader_users (id,username,password_hash,password_salt) VALUES (?,?,?,?)").bind(id, username, await passwordHash(password, salt), salt).run();

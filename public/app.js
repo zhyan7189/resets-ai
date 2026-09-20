@@ -830,7 +830,6 @@ async function refreshReaderSession() {
     const session = await response.json();
     if (!response.ok) return;
     $("reader-register").hidden = session.logged_in;
-    $("reader-login").hidden = session.logged_in;
     $("reader-logout").hidden = !session.logged_in;
     if (session.logged_in) $("reader-logout").title = `当前读者：${session.username}`;
   } catch { /* 会话状态暂不可用时仍显示登录入口。 */ }

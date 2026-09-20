@@ -41,7 +41,7 @@ async function api(path, options = {}) {
   if (!response.ok) {
     if (response.status === 401) {
       sessionStorage.removeItem(sessionKey);
-      window.location.replace("/login");
+      window.location.replace("/controller");
     }
     const labels = {
       unauthorized:"管理密钥无效或未配置", database_unconfigured:"尚未绑定 D1 数据库",
@@ -477,9 +477,9 @@ async function submitReview(action, note = "") {
 }
 
 async function openWorkspace() {
-  if (window.location.protocol === "file:") { document.body.textContent = "请通过本地服务打开 /login 页面。"; return; }
+  if (window.location.protocol === "file:") { document.body.textContent = "请通过本地服务打开 /controller 页面。"; return; }
   token = sessionStorage.getItem(sessionKey) || "";
-  if (!token) { window.location.replace("/login"); return; }
+  if (!token) { window.location.replace("/controller"); return; }
   try {
     await api("/api/admin/auth");
     const results = await Promise.allSettled([refreshList(), refreshReview(), refreshOverview(), refreshMedia(), refreshOperations(), refreshAds()]);
@@ -492,10 +492,10 @@ async function openWorkspace() {
     if (results[2].status !== "fulfilled") setHealth("d1", false, "未连接或未升级");
     refreshResetHealth();
     syncNavigation();
-  } catch { sessionStorage.removeItem(sessionKey); window.location.replace("/login"); }
+  } catch { sessionStorage.removeItem(sessionKey); window.location.replace("/controller"); }
 }
 
-$("logout").addEventListener("click", () => { sessionStorage.removeItem(sessionKey); token = ""; window.location.replace("/login"); });
+$("logout").addEventListener("click", () => { sessionStorage.removeItem(sessionKey); token = ""; window.location.replace("/controller"); });
 $("new-content").addEventListener("click", () => { $("new-choices").hidden = false; $("import-panel").hidden = true; $("new-dialog").showModal(); });
 $("new-close").addEventListener("click", () => $("new-dialog").close());
 $("choose-link").addEventListener("click", () => { $("import-panel").hidden = false; $("new-choices").hidden = true; $("import-url").focus(); });
