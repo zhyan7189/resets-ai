@@ -21,8 +21,8 @@ export async function onRequestPost({ request, env }) {
     const exclusive = [];
     for (const key of keys) {
       const path = `/api/media/${key}`;
-      const used = await env.DB.prepare(`SELECT 1 AS used FROM articles WHERE id!=? AND (body LIKE ? OR cover_url LIKE ? OR media_manifest LIKE ?)
-        UNION SELECT 1 AS used FROM article_versions WHERE article_id!=? AND snapshot LIKE ? LIMIT 1`).bind(id, `%${path}%`, `%${path}%`, `%${path}%`, id, `%${path}%`).first();
+      const used = await env.DB.prepare(`SELECT 1 AS used FROM articles WHERE id!=? AND (instr(body, ?) > 0 OR instr(cover_url, ?) > 0 OR instr(media_manifest, ?) > 0)
+        UNION SELECT 1 AS used FROM article_versions WHERE article_id!=? AND instr(snapshot, ?) > 0 LIMIT 1`).bind(id, path, path, path, id, path).first();
       if (!used) exclusive.push(key);
     }
     const absent = "NOT EXISTS (SELECT 1 FROM articles WHERE id=?)";

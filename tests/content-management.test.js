@@ -10,7 +10,7 @@ import { onRequestGet as getItem } from "../functions/api/articles/item.js";
 import { onRequestPost as click } from "../functions/api/articles/click.js";
 import { onRequestGet as popular } from "../functions/api/articles/popular.js";
 import { extractMetadata } from "../functions/api/admin/import.js";
-import { extractArticleBody, extractXEmbed, mergeXEmbedBody, onRequestPost as importLink } from "../functions/api/admin/import.js";
+import { extractArticleBody, extractXEmbed, mergeEmbeddedVideos, mergeXEmbedBody, onRequestPost as importLink } from "../functions/api/admin/import.js";
 import { onRequestPost as reparseSource } from "../functions/api/admin/reparse.js";
 import { onRequestPost as restoreArchive } from "../functions/api/admin/restore.js";
 import { onRequestPost as shredArchive } from "../functions/api/admin/shred.js";
@@ -86,11 +86,45 @@ test("回收站粉碎要求正确档案编号与版本，清除相关 D1 记录�
   assert.equal((await shredArchive({ request:request("/api/admin/shred", "POST", { id:firstId, archive_code:"DA1", revision:1 }, true), env })).status, 409);
   await discard({ request:request("/api/admin/articles", "DELETE", { id:firstId, revision:1 }, true), env });
   assert.equal((await shredArchive({ request:request("/api/admin/shred", "POST", { id:firstId, archive_code:"DA2", revision:2 }, true), env })).status, 409);
+  const prepare = env.DB.prepare.bind(env.DB);
+  env.DB.prepare = (sql) => {
+    if (sql.includes("FROM article_versions WHERE article_id!=?") && sql.includes("LIKE")) throw new Error("LIKE or GLOB pattern too complex: SQLITE_ERROR");
+    return prepare(sql);
+  };
   const shredded = await shredArchive({ request:request("/api/admin/shred", "POST", { id:firstId, archive_code:"DA1", revision:2 }, true), env });
   assert.equal(shredded.status, 200);
   assert.deepEqual(deleted, [key2]);
   assert.equal((await getAdminItem({ request:request(`/api/admin/item?id=${firstId}`, "GET", undefined, true), env })).status, 404);
   assert.equal((await listAdminMedia({ request:request("/api/admin/media", "GET", undefined, true), env })).status, 200);
+});
+
+test("X 长文的内嵌视频保留在段落原位，重新提取只补缺失视频", async () => {
+  const source = "https://x.com/HanZhang415188/status/2101571088891408767";
+  const video = "https://video.twimg.com/amplify_video/2101559170361339904/vid/avc1/960x540/IWfhvIwvsemVn1TH.mp4?tag=29";
+  const html = `<article><p>先看一段成片。</p><figure><video src="${video}" controls></video><figcaption>样片：预制菜明示前 60 秒</figcaption></figure><p>继续阅读。</p></article>`;
+  const body = extractArticleBody(html, source);
+  assert.match(body, /先看一段成片。\n\n@\[样片：预制菜明示前 60 秒\]/);
+  assert.ok(body.indexOf(video) < body.indexOf("继续阅读。"));
+  assert.equal(mediaManifest(body, "", "")[0].url, video);
+  const existing = "先看一段成片。\n\n继续阅读。";
+  const repaired = mergeEmbeddedVideos(existing, body);
+  assert.equal(repaired, `先看一段成片。\n\n@[样片：预制菜明示前 60 秒](${video})\n\n继续阅读。`);
+  assert.equal(mergeEmbeddedVideos(repaired, body), repaired);
+  assert.doesNotMatch(extractArticleBody(html.replaceAll("video.twimg.com", "evil.example"), source), /@\[/);
+
+  const env = environment();
+  const created = await create({ request:request("/api/admin/articles", "POST", { ...sample, source_url:source, rights:"licensed", body:existing }, true), env });
+  const { id } = await created.json();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(html, { headers:{ "content-type":"text/html" } });
+  try {
+    const response = await reparseSource({ request:request("/api/admin/reparse", "POST", { id }, true), env });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.video_added, true);
+    assert.equal(data.body, repaired);
+    assert.equal((await (await getAdminItem({ request:request(`/api/admin/item?id=${id}`, "GET", undefined, true), env })).json()).article.body, existing);
+  } finally { globalThis.fetch = realFetch; }
 });
 
 test("后台登录验证不依赖数据库，错误密钥仍被拒绝", async () => {
@@ -477,6 +511,27 @@ test("导入图片到 R2 后仍保留原始图片地址供审核", async () => {
     assert.match(draft.original_body, /https:\/\/example\.org\/a\.png/);
     assert.match(draft.body, /\/api\/media\/[a-f0-9-]{36}\.png/);
     assert.equal(draft.status, "review");
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("正文视频保留外部播放地址且不进入图片镜像队列", async () => {
+  const env = environment();
+  const video = "https://example.org/clip.mp4";
+  const requested = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    requested.push(String(url));
+    return new Response(`<meta property="og:title" content="视频文章"><meta property="og:description" content="视频说明"><meta name="author" content="作者"><article><p>正文。</p><video src="${video}"></video></article>`, { headers:{ "content-type":"text/html" } });
+  };
+  try {
+    const response = await importLink({ request:request("/api/admin/import", "POST", { url:"https://example.org/post" }, true), env });
+    assert.equal(response.status, 201);
+    const { draft, media, issues } = await response.json();
+    assert.deepEqual(requested, ["https://example.org/post"]);
+    assert.deepEqual(media, { total:0, saved:0 });
+    assert.ok(!issues.some((issue) => issue.includes("图片尚未入库")));
+    assert.match(draft.body, /@\[视频\]\(https:\/\/example\.org\/clip\.mp4\)/);
+    assert.deepEqual(mediaManifest(draft.body, "", "").map((item) => item.type), ["video"]);
   } finally { globalThis.fetch = realFetch; }
 });
 

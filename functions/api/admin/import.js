@@ -44,9 +44,24 @@ export function extractArticleBody(html, sourceUrl) {
     try { if (src) url = cleanMediaUrl(new URL(decode(src), sourceUrl).href); } catch { /* 跳过无效图片地址 */ }
     if (url) blocks.push(`![${alt}](${url})`);
   };
-  for (const match of safe.matchAll(/<(h[1-3]|p|blockquote|img)\b([^>]*)>([\s\S]*?)<\/\1>|<img\b([^>]*?)\/?\s*>/gi)) {
+  const addVideo = (attrs, inner, index, length) => {
+    const src = attrs.match(/(?:^|\s)(?:src|data-src)=["']([^"']+)["']/i)?.[1] ||
+      inner.match(/<source\b[^>]*\bsrc=["']([^"']+)["']/i)?.[1];
+    let url = null;
+    try { if (src) url = cleanUrl(new URL(decode(src), sourceUrl).href); } catch { /* 跳过无效视频地址 */ }
+    if (!url || videoPlayback(url)?.type !== "video") return;
+    const source = new URL(sourceUrl);
+    const media = new URL(url);
+    if (sourceAdapter(sourceUrl) === "x" && media.hostname !== "video.twimg.com") return;
+    if (sourceAdapter(sourceUrl) !== "x" && media.hostname !== source.hostname) return;
+    const following = safe.slice(index + length).split(/<\/figure>/i, 1)[0].match(/^[\s\S]{0,500}?<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/i);
+    const caption = stripTags(following?.[1] || "视频").replace(/[\[\]]/g, "").slice(0, 180);
+    blocks.push(`@[${caption}](${url})`);
+  };
+  for (const match of safe.matchAll(/<(h[1-3]|p|blockquote|img|video)\b([^>]*)>([\s\S]*?)<\/\1>|<img\b([^>]*?)\/?\s*>/gi)) {
     const tag = (match[1] || "img").toLowerCase();
     if (tag === "img") { addImage(match[2] || match[4] || ""); continue; }
+    if (tag === "video") { addVideo(match[2] || "", match[3] || "", match.index, match[0].length); continue; }
     const parts = String(match[3] || "").split(/(<img\b[^>]*\/?\s*>)/gi);
     for (const part of parts) {
       if (/^<img\b/i.test(part)) { addImage(part); continue; }
@@ -55,6 +70,19 @@ export function extractArticleBody(html, sourceUrl) {
     }
   }
   return stripXProfileImages(blocks.join("\n\n"), sourceUrl).slice(0, 120000);
+}
+
+export function mergeEmbeddedVideos(existing, extracted) {
+  let result = String(existing || "");
+  const source = String(extracted || "");
+  for (const match of source.matchAll(/@\[[^\]\n]*\]\((https:\/\/[^\s)]+\.mp4(?:\?[^\s)]*)?)\)/gi)) {
+    if (result.includes(match[1])) continue;
+    const before = source.slice(0, match.index).split(/\n\s*\n/).map((block) => block.trim()).filter(Boolean).at(-1);
+    const at = before ? result.indexOf(before) : -1;
+    if (at >= 0) result = result.slice(0, at + before.length) + `\n\n${match[0]}` + result.slice(at + before.length);
+    else result = [result.trim(), match[0]].filter(Boolean).join("\n\n");
+  }
+  return result;
 }
 
 export function extractMetadata(html, sourceUrl) {
@@ -113,7 +141,7 @@ export function mergeXEmbedBody(body, embedText) {
   return written ? existing : [text, existing].filter(Boolean).join("\n\n");
 }
 
-async function readLimited(response) {
+export async function readLimited(response) {
   const reader = response.body?.getReader();
   if (!reader) return { html:"", truncated:false };
   const chunks = [];
@@ -168,7 +196,8 @@ async function mirrorImage(url, env) {
 
 async function mirrorArticleMedia(metadata, env) {
   const missing = [];
-  const urls = [...new Set(mediaManifest(metadata.format === "article" ? metadata.body : "", metadata.cover_url, "").map((item) => item.url))];
+  const urls = [...new Set(mediaManifest(metadata.format === "article" ? metadata.body : "", metadata.cover_url, "")
+    .filter((item) => item.type === "image" || item.type === "cover").map((item) => item.url))];
   const copied = new Map();
   if (urls.length > 24) missing.push(`图片数量超过单次导入上限（${urls.length} 张）；请核对并补齐。`);
   const queue = urls.slice(0, 24);

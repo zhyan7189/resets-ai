@@ -16,6 +16,7 @@ let reviewPage = 1;
 let reviewTotal = 0;
 let reviewing = null;
 let originalBody = "";
+let loadedBody = "";
 let extractionState = "manual";
 let extractionNote = "";
 let adRows = [];
@@ -170,6 +171,7 @@ function fill(article = {}) {
   editingId = article.id || "";
   revision = article.revision ?? null;
   originalBody = article.original_body || "";
+  loadedBody = article.body || "";
   extractionState = article.extraction_state || "manual";
   extractionNote = article.extraction_note || "";
   for (const name of ["source_url","source_name","author","published_at","format","category","rights","title","card_title","summary","cover_url","body","video_url"]) {
@@ -190,6 +192,7 @@ function fill(article = {}) {
   $("editor-title").textContent = editingId ? `编辑档案 ${article.archive_code || ""}` : "新增档案";
   $("editor-mode").textContent = editingId ? "编辑档案" : "新增档案";
   $("current-status").textContent = `当前：${statusNames[article.status] || "未保存"}${revision ? ` · 第 ${revision} 版` : ""}`;
+  $("save-published").hidden = !editingId || article.status !== "published";
   $("reparse-x").hidden = !editingId || !/^https:\/\/(?:www\.)?(?:x|twitter)\.com\//i.test(article.source_url || "");
   $("article-form").hidden = false;
   $("editor-empty").hidden = true;
@@ -269,16 +272,21 @@ async function reparseXArticle() {
   if (!editingId) return;
   const id = editingId;
   const button = $("reparse-x"); button.disabled = true;
-  status("save-status", "正在重新提取 X 原文与摘要…");
+  status("save-status", "正在重新提取 X 原文与媒体…");
   try {
     const data = await api("/api/admin/reparse", { method:"POST", body:JSON.stringify({ id }) });
     if (editingId !== id || !$("editor").open) return;
+    if (data.video_added && field("body").value !== loadedBody) {
+      status("save-status", "原文中找到了视频。当前展示稿有未保存的修改，请先保存后重新提取，避免覆盖你的编辑。", true);
+      return;
+    }
     if (!field("summary").value.trim()) field("summary").value = data.summary;
     originalBody = data.original_body;
     $("original-body").value = originalBody;
-    if (!field("body").value.replace(/^!\[[^\]]*\]\([^\n]+\)\s*$/gm, "").trim()) field("body").value = data.body;
+    if (data.video_added || !field("body").value.replace(/^!\[[^\]]*\]\([^\n]+\)\s*$/gm, "").trim()) field("body").value = data.body;
+    loadedBody = field("body").value;
     preview();
-    status("save-status", "已填入可获取的原文和摘要。请核对后保存；当前尚未写入数据库。");
+    status("save-status", "已补入可获取的原文与媒体。请核对后保存；当前尚未写入数据库。");
   } catch (error) { status("save-status", error.message, true); }
   finally { button.disabled = false; }
 }
@@ -672,6 +680,7 @@ async function refreshGuestMode() {
   const data = await api("/api/admin/guest-mode");
   $("guest-mode").checked = Boolean(data.enabled);
   $("guest-mode").disabled = false;
+  status("guest-mode-status", data.enabled ? "当前已开启：游客仅能阅读最新一篇档案。" : "当前已关闭：游客可阅读全部档案。");
 }
 $("guest-mode").addEventListener("change", async (event) => {
   const input = event.target;
@@ -831,6 +840,9 @@ form.addEventListener("change", preview);
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const requestedStatus = event.submitter?.dataset.save || "review";
+  if (requestedStatus === "published" && (!editingId || $("save-published").hidden || !await confirmAction({
+    badge:"已发布档案", title:"确认更新线上档案？", summary:"保存后，这篇档案的新内容会立即对读者可见。", detail:"请先核对原文、视频地址和转载授权。", confirmText:"确认更新",
+  }))) return;
   const article = Object.fromEntries(new FormData(form));
   article.status = requestedStatus;
   article.rights_confirmed = field("rights_confirmed").checked;

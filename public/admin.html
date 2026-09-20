@@ -190,7 +190,7 @@
     .confirm-dialog p { color:var(--muted); line-height:1.65; overflow-wrap:anywhere; }
     .confirm-dialog .actions { justify-content:flex-end; align-items:center; margin-top:24px; }
     .table-scroll { width:100%; overflow:auto; margin-top:16px; border:1.5px solid var(--ink); border-radius:10px; background:white; }
-    .data-table { width:100%; border-collapse:collapse; min-width:760px; font-size:12px; }
+    .data-table { width:100%; border-collapse:collapse; min-width:760px; font-family:inherit; font-size:12px; }
     .data-table th,.data-table td { padding:12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; }
     .data-table th { position:sticky; top:0; background:#edf3ff; color:var(--muted); font-weight:800; white-space:nowrap; }
     .data-table tr:last-child td { border-bottom:0; }
@@ -202,7 +202,7 @@
     .guest-switch { display:flex; align-items:center; gap:12px; margin-top:15px; padding:13px 16px; border:1.5px solid var(--line); border-radius:11px; background:#f2edff; }
     .guest-switch > div { flex:1; }
     .guest-switch strong { display:block; font-size:13px; }
-    .guest-switch small { color:var(--muted); line-height:1.5; }
+    .guest-switch small { display:block; margin-top:5px; color:var(--muted); line-height:1.5; }
     .guest-switch input { appearance:none; width:48px; height:27px; flex:none; border:2px solid var(--ink); border-radius:20px; background:#c8d2e8; cursor:pointer; transition:background .2s; }
     .guest-switch input::before { content:""; display:block; width:17px; height:17px; margin:3px; border-radius:50%; background:white; transition:transform .2s; }
     .guest-switch input:checked { background:var(--mint); }
@@ -235,6 +235,7 @@
       <p class="preview-banner" id="preview-banner" hidden></p>
       <section class="view" id="dashboard">
         <div class="metrics" aria-label="驾驶舱关键指标"><div class="metric"><span>已发布</span><strong id="metric-published">—</strong></div><div class="metric"><span>待审核</span><strong id="metric-review">—</strong></div><div class="metric"><span>需协助</span><strong id="metric-help">—</strong></div><div class="metric"><span>累计阅读</span><strong id="metric-reads">—</strong></div><div class="metric"><span>累计访问 · PV</span><strong id="metric-visits">—</strong></div></div>
+        <section class="panel" aria-label="游客阅读权限"><div class="panel-heading"><h2>游客模式</h2><small>关闭限制后游客可阅读全部档案</small></div><label class="guest-switch"><div><strong>限制未注册访客阅读</strong><small id="guest-mode-description">开启时只能完整阅读最新一篇档案；关闭时全部档案开放。</small></div><input id="guest-mode" type="checkbox" aria-label="游客阅读限制开关" disabled /></label><p class="notice" id="guest-mode-status" role="status"></p></section>
         <div class="dashboard-grid" style="margin-top:22px">
           <section class="panel"><div class="panel-heading"><h2>网站访问量</h2><small>近 30 天 · 页面浏览次数</small></div><div class="chart" id="visits-chart"></div><p class="module-note">从统计功能启用后开始记录，不回填历史访问。</p></section>
           <section class="panel"><div class="panel-heading"><h2>文章阅读趋势</h2><small>近 30 天 · 卡片点击</small></div><div class="chart" id="reads-chart"></div><p class="module-note">累计阅读沿用既有点击统计；日趋势从新统计启用后开始。</p></section>
@@ -242,7 +243,6 @@
           <section class="panel"><div class="panel-heading"><h2>卡片点击率 Top</h2><label class="rank-sort">近 7 天 · 曝光至少 20 次 · <select id="ctr-sort" aria-label="卡片点击率排序"><option value="asc">点击率从小到大 ↑</option><option value="desc">点击率从大到小 ↓</option></select></label></div><div id="ctr-list" class="list"></div><p class="module-note">点击率＝卡片点击次数 ÷ 卡片曝光次数。</p></section>
         </div>
         <section class="panel" id="settings"><div class="panel-heading"><h2>连接状态</h2><small>实时检查与配置提示</small></div><div class="health-list"><div class="health-item" id="health-d1"><i class="health-light"></i>D1 数据库：<strong id="setting-d1">检查中</strong></div><div class="health-item" id="health-r2"><i class="health-light"></i>R2 图片存储：<strong id="setting-r2">检查中</strong></div><div class="health-item" id="health-ai"><i class="health-light"></i>AI 卡片草稿：<strong id="setting-ai">检查中</strong></div><div class="health-item" id="health-resets"><i class="health-light"></i>重置公告来源：<strong id="setting-resets">检查中</strong></div></div><p class="module-note">指示灯显示当前接口和资源配置状态；R2 为绑定检查，上传结果仍需在媒体库核对。</p></section>
-        <section class="panel"><div class="panel-heading"><h2>游客模式</h2><small>即时影响前台阅读权限</small></div><label class="guest-switch"><div><strong>限制未注册访客阅读</strong><small id="guest-mode-description">开启时只能完整阅读最新一篇档案；关闭时全部档案开放。</small></div><input id="guest-mode" type="checkbox" aria-label="游客只能阅读最新一篇档案" disabled /></label><p class="notice" id="guest-mode-status" role="status"></p></section>
       </section>
       <section class="view" id="content" hidden>
         <section class="panel"><div class="panel-heading"><h2>档案管理</h2><button class="button" id="new-content" type="button">＋ 新增档案</button></div>
@@ -252,13 +252,13 @@
         </section>
         <dialog class="review-dialog editor-dialog" id="editor"><div class="dialog-content"><div class="panel-heading editor-heading"><div class="editor-heading-main"><span class="editor-mode" id="editor-mode">编辑档案</span><h2 id="editor-title">编辑档案</h2><small id="current-status"></small></div><button class="dialog-close" id="close-editor" type="button" aria-label="关闭档案编辑">×</button></div><p class="empty" id="editor-empty" hidden></p><form id="article-form" hidden>
         <div class="form-grid"><label class="full"><span>原始链接 *</span><input name="source_url" required type="url" /></label><label><span>来源平台（发布必填）</span><input name="source_name" /></label><label><span>原作者 ID（发布必填）</span><input name="author" /></label><label><span>原标题（发布必填）</span><input name="title" /></label><label><span>首页卡片标题</span><input name="card_title" maxlength="180" /></label><label><span>分类</span><select name="category"><option value="opportunity">机会资讯</option><option value="tutorial">实操教程</option><option value="tools">工具观察</option><option value="case">创业案例</option><option value="pitfall">避坑经验</option></select></label><label><span>内容形式</span><select name="format"><option value="article">文章</option><option value="video">视频</option></select></label><label><span>原文发布日期</span><input name="published_at" type="date" /></label><label><span>转载方式</span><select name="rights"><option value="licensed">已获授权全文转载</option><option value="embed">视频站内播放</option><option value="summary">导读 + 来源链接</option></select></label><label class="full"><span>卡片摘要（发布必填）</span><textarea name="summary" maxlength="500"></textarea></label><label><span>封面图片</span><input name="cover_url" type="text" /></label><label><span>视频地址（X、B 站、YouTube、抖音官方播放器或 HTTPS MP4）</span><input name="video_url" type="url" /></label></div>
-        <div class="source-review" style="margin-top:18px"><label><span>提取的原文（只读）</span><textarea id="original-body" readonly placeholder="链接尚未提取到完整原文"></textarea><small class="help">用于对照，不会因为编辑展示稿而改变。</small></label><label><span>本站展示稿</span><textarea name="body" id="body" placeholder="按原文顺序核对段落与配图；图片单独一段：![说明](图片地址)"></textarea><small class="help">文字与图片请与作者原文逐项核对。</small></label></div><div class="actions"><button class="button secondary" id="reparse-x" type="button" hidden>重新提取 X 原文与摘要</button></div>
+        <div class="source-review" style="margin-top:18px"><label><span>提取的原文（只读）</span><textarea id="original-body" readonly placeholder="链接尚未提取到完整原文"></textarea><small class="help">用于对照，不会因为编辑展示稿而改变。</small></label><label><span>本站展示稿</span><textarea name="body" id="body" placeholder="按原文顺序核对段落与媒体；图片：![说明](图片地址)，视频：@[说明](HTTPS MP4 地址)"></textarea><small class="help">文字、图片与视频请与作者原文逐项核对。</small></label></div><div class="actions"><button class="button secondary" id="reparse-x" type="button" hidden>重新提取 X 原文与媒体</button></div>
         <p class="module-note" id="extraction-note"></p>
         <p class="module-note" id="media-import-summary"></p>
         <div class="review-checks"><div><span>原文与素材</span><b id="check-content">待核对</b></div><div><span>来源署名</span><b id="check-credit">待核对</b></div><div><span>播放方式</span><b id="check-playback">待核对</b></div></div>
         <label class="checkline"><input type="checkbox" name="rights_confirmed" />我已核对作者授权、原文和全部素材，可在本站转载</label>
         <div class="preview editor-preview"><div><h3>首页卡片预览</h3><div class="card-preview"><img id="preview-cover" alt="" hidden /><small id="preview-kicker"></small><h3 id="preview-title"></h3><p id="preview-summary"></p><small id="preview-source"></small></div></div></div>
-        <div class="actions" style="margin-top:20px"><button class="button secondary" id="editor-cancel" type="button">取消</button><button class="button secondary" type="submit" data-save="draft">保存草稿</button><button class="button publish" type="submit" data-save="review">保存并提交审核</button></div><p class="notice" id="save-status" role="status"></p>
+        <div class="actions" style="margin-top:20px"><button class="button secondary" id="editor-cancel" type="button">取消</button><button class="button secondary" type="submit" data-save="draft">保存草稿</button><button class="button publish" type="submit" data-save="review">保存并提交审核</button><button class="button publish" id="save-published" type="submit" data-save="published" hidden>保存并保持发布</button></div><p class="notice" id="save-status" role="status"></p>
         <div id="versions-panel" hidden style="margin-top:22px"><h3>历史版本</h3><p class="help">选择旧版会载入编辑器；再次保存才会生成新版本。</p><div class="list" id="versions-list"></div></div>
       </form></div></dialog>
       </section>

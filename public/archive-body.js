@@ -1,6 +1,6 @@
 // Render the small Markdown subset stored in archive bodies without injecting HTML.
 function appendArchiveBody(text, container, { heading = "h3", figureClass = "" } = {}) {
-  const media = /!\[([^\]\n]*)\]\((https:\/\/[^\s)]+|\/api\/media\/[a-f0-9-]{36}\.(?:jpg|png|webp|gif))\)/gi;
+  const media = /([!@])\[([^\]\n]*)\]\((https:\/\/[^\s)]+|\/api\/media\/[a-f0-9-]{36}\.(?:jpg|png|webp|gif))\)/gi;
   const body = String(text || "");
   let cursor = 0;
   function addText(value) {
@@ -24,14 +24,24 @@ function appendArchiveBody(text, container, { heading = "h3", figureClass = "" }
     addText(body.slice(cursor, match.index));
     cursor = match.index + match[0].length;
     let safe = false;
-    try { const url = new URL(match[2], location.origin); safe = url.protocol === "https:" || url.origin === location.origin && /^\/api\/media\/[a-f0-9-]{36}\.(?:jpg|png|webp|gif)$/.test(url.pathname); } catch { /* invalid URL is rendered as plain text */ }
+    try {
+      const url = new URL(match[3], location.origin);
+      safe = match[1] === "@" ? url.protocol === "https:" && /\.mp4$/i.test(url.pathname) :
+        url.protocol === "https:" || url.origin === location.origin && /^\/api\/media\/[a-f0-9-]{36}\.(?:jpg|png|webp|gif)$/.test(url.pathname);
+    } catch { /* invalid URL is rendered as plain text */ }
     if (!safe) { addText(match[0]); continue; }
     const figure = document.createElement("figure");
     if (figureClass) figure.className = figureClass;
-    const image = document.createElement("img"); image.src = match[2]; image.alt = match[1]; image.loading = "lazy";
-    figure.append(image);
-    if (match[1] && match[1] !== "Article cover image") {
-      const caption = document.createElement("figcaption"); caption.textContent = match[1]; figure.append(caption);
+    if (match[1] === "@") {
+      const video = document.createElement("video"); video.src = match[3]; video.controls = true;
+      video.preload = "metadata"; video.playsInline = true; video.className = "archive-inline-video";
+      figure.append(video);
+    } else {
+      const image = document.createElement("img"); image.src = match[3]; image.alt = match[2]; image.loading = "lazy";
+      figure.append(image);
+    }
+    if (match[2] && match[2] !== "Article cover image") {
+      const caption = document.createElement("figcaption"); caption.textContent = match[2]; figure.append(caption);
     }
     container.append(figure);
   }
