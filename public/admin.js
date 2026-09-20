@@ -26,6 +26,7 @@ let selectedMediaArchive = null;
 let operationsPage = 1;
 let operationsTotal = 0;
 let deleting = null;
+let shredding = null;
 let dashboardRanks = { heat:[], ctr:[] };
 
 document.body.append($("editor"));
@@ -33,6 +34,7 @@ document.body.append($("editor"));
 function canCloseDialog(dialog) {
   if (dialog.id === "approve-dialog") return !$("approve-confirm").disabled;
   if (dialog.id === "delete-dialog") return !$("delete-confirm").disabled;
+  if (dialog.id === "shred-dialog") return !$("shred-confirm").dataset.saving;
   if (dialog.id === "editor") return form.dataset.saving !== "true";
   if (dialog.id === "ad-editor") return $("ad-form").dataset.saving !== "true";
   return true;
@@ -109,6 +111,7 @@ async function api(path, options = {}) {
       invalid_ad_dates:"广告展示时间无效，结束时间须晚于开始时间",
       source_unavailable:"X 来源接口暂不可用，请稍后重试", source_text_unavailable:"来源未提供可提取的文字，请人工核对并填写摘要",
       restore_first:"请先从回收站恢复档案", restore_unavailable:"恢复失败，请刷新回收站后重试",
+      not_discarded:"只有回收站中的档案可粉碎", shred_unavailable:"粉碎失败，请刷新列表后重试", media_unconfigured:"R2 未连接，无法安全清理素材", settings_unavailable:"游客模式保存失败，请检查 D1 迁移", video_link_selected_as_article:"这是视频链接，请选择视频档案后再导入",
     };
     const error = new Error(labels[data.error] || data.error || `请求失败（${response.status}）`);
     error.code = data.error;
@@ -160,24 +163,7 @@ function previewVideo(value, container) {
 
 function previewBody(body, container) {
   container.replaceChildren();
-  for (const raw of String(body || "全文待补全").split(/\n\s*\n/)) {
-    const block = raw.trim();
-    if (!block) continue;
-    const image = block.match(/^!\[([^\]]*)\]\((https:\/\/[^\s)]+|\/api\/media\/[a-f0-9-]{36}\.(?:jpg|png|webp|gif))\)$/);
-    if (image) {
-      const figure = document.createElement("figure");
-      const img = document.createElement("img");
-      img.src = image[2]; img.alt = image[1]; img.loading = "lazy";
-      figure.append(img);
-      if (image[1]) { const caption = document.createElement("figcaption"); caption.textContent = image[1]; figure.append(caption); }
-      container.append(figure);
-      continue;
-    }
-    const heading = block.match(/^(#{1,3})\s+([\s\S]+)$/);
-    const node = document.createElement(heading ? "h3" : block.startsWith("> ") ? "blockquote" : "p");
-    node.textContent = heading ? heading[2] : block.startsWith("> ") ? block.slice(2) : block;
-    container.append(node);
-  }
+  appendArchiveBody(body || "全文待补全", container);
 }
 
 function fill(article = {}) {
@@ -307,8 +293,12 @@ async function refreshRecycle() {
   if (!data.articles.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 8; cell.className = "empty"; cell.textContent = "回收站中没有匹配的档案。"; row.append(cell); list.append(row); }
   for (const article of data.articles) {
     const row = document.createElement("tr");
-    for (const value of [article.archive_code || "—", article.card_title || article.title || article.source_url, article.author || "待补", article.format === "video" ? "视频" : "文章", "已废弃", article.created_at?.slice(0, 16) || "—", String(article.clicks || 0)]) {
-      const cell = document.createElement("td"); cell.textContent = value; row.append(cell);
+    for (const [index, value] of [article.archive_code || "—", article.card_title || article.title || article.source_url, article.author || "待补", article.format === "video" ? "视频" : "文章", "已废弃", article.created_at?.slice(0, 16) || "—", String(article.clicks || 0)].entries()) {
+      const cell = document.createElement("td"); cell.textContent = value;
+      if (index === 0) cell.className = "id-cell";
+      if (index === 1) cell.className = "title-cell";
+      if (index === 4) { const badge = document.createElement("span"); badge.className = "status discarded"; badge.textContent = value; cell.replaceChildren(badge); }
+      row.append(cell);
     }
     const action = document.createElement("td"); const button = document.createElement("button");
     button.type = "button"; button.className = "button secondary"; button.textContent = "恢复";
@@ -321,7 +311,15 @@ async function refreshRecycle() {
         await Promise.all([refreshRecycle(), refreshList(), refreshMedia(), refreshReview(), refreshOverview(), refreshOperations()]);
       } catch (error) { status("recycle-status", error.message, true); button.disabled = false; }
     });
-    action.append(button); row.append(action); list.append(row);
+    const shred = document.createElement("button"); shred.type = "button"; shred.className = "button danger"; shred.textContent = "粉碎";
+    shred.addEventListener("click", () => {
+      shredding = article;
+      $("shred-summary").textContent = `${article.archive_code} · ${article.card_title || article.title}`;
+      $("shred-code").value = ""; $("shred-code").placeholder = article.archive_code;
+      $("shred-confirm").disabled = true; status("shred-status", "");
+      $("shred-dialog").showModal(); $("shred-code").focus();
+    });
+    action.append(button, shred); action.className = "list-actions"; row.append(action); list.append(row);
   }
   const size = Number($("recycle-page-size").value);
   $("recycle-page-info").textContent = `共 ${recycleTotal} 条 · 第 ${recyclePage}/${Math.max(1, Math.ceil(recycleTotal / size))} 页`;
@@ -437,8 +435,12 @@ function renderMedia() {
   const archiveList = $("media-archive-list"); archiveList.replaceChildren();
   for (const archive of archives.slice((mediaPage - 1) * pageSize, mediaPage * pageSize)) {
     const row = document.createElement("tr");
-    for (const value of [archive.archive_code || "—", archive.title || "未命名档案", statusNames[archive.status] || archive.status || "—", archive.items.length, archive.items.filter((item) => item.type === "cover").length, archive.items.filter((item) => item.type === "image").length, archive.items.filter((item) => item.type === "video").length, archive.items.filter((item) => item.storage === "R2").length]) {
-      const cell = document.createElement("td"); cell.textContent = value; row.append(cell);
+    for (const [index, value] of [archive.archive_code || "—", archive.title || "未命名档案", statusNames[archive.status] || archive.status || "—", archive.items.length, archive.items.filter((item) => item.type === "cover").length, archive.items.filter((item) => item.type === "image").length, archive.items.filter((item) => item.type === "video").length, archive.items.filter((item) => item.storage === "R2").length].entries()) {
+      const cell = document.createElement("td"); cell.textContent = value;
+      if (index === 0) cell.className = "id-cell";
+      if (index === 1) cell.className = "title-cell";
+      if (index === 2) { const badge = document.createElement("span"); badge.className = `status ${archive.status || ""}`; badge.textContent = value; cell.replaceChildren(badge); }
+      row.append(cell);
     }
     const action = document.createElement("td"); const button = document.createElement("button");
     button.className = "button secondary"; button.type = "button"; button.textContent = "查看素材";
@@ -621,7 +623,7 @@ async function openReviewPreview(id, canReview) {
     const cardCover = $("review-card-cover"); cardCover.hidden = cover.hidden;
     if (!cardCover.hidden) cardCover.src = article.cover_url;
     $("review-source").href = article.source_url;
-    if (article.format === "video") previewVideo(article.video_url || article.source_url, $("review-body"));
+    if (article.format === "video") { previewVideo(article.video_url || article.source_url, $("review-body")); if (article.rights === "licensed" && article.body) appendArchiveBody(article.body, $("review-body")); }
     else if (article.rights === "licensed") previewBody(article.body, $("review-body"));
     else previewBody("本站目前仅收录这篇内容的导读，全文请查看原始来源。", $("review-body"));
     $("review-actions").hidden = !canReview;
@@ -652,7 +654,7 @@ async function openWorkspace() {
   if (!token) { window.location.replace("/controller"); return; }
   try {
     await api("/api/admin/auth");
-    const results = await Promise.allSettled([refreshList(), refreshReview(), refreshOverview(), refreshMedia(), refreshOperations(), refreshAds(), refreshRecycle()]);
+    const results = await Promise.allSettled([refreshList(), refreshReview(), refreshOverview(), refreshMedia(), refreshOperations(), refreshAds(), refreshRecycle(), refreshGuestMode()]);
     $("workspace").hidden = false;
     const failures = results.filter((result) => result.status === "rejected");
     $("preview-banner").hidden = failures.length === 0;
@@ -666,10 +668,27 @@ async function openWorkspace() {
 }
 
 $("logout").addEventListener("click", () => { sessionStorage.removeItem(sessionKey); token = ""; window.location.replace("/controller"); });
-$("new-content").addEventListener("click", () => { $("new-choices").hidden = false; $("import-panel").hidden = true; $("new-dialog").showModal(); });
+async function refreshGuestMode() {
+  const data = await api("/api/admin/guest-mode");
+  $("guest-mode").checked = Boolean(data.enabled);
+  $("guest-mode").disabled = false;
+}
+$("guest-mode").addEventListener("change", async (event) => {
+  const input = event.target;
+  input.disabled = true;
+  try {
+    const data = await api("/api/admin/guest-mode", { method:"PUT", body:JSON.stringify({ enabled:input.checked }) });
+    input.checked = data.enabled;
+    status("guest-mode-status", data.enabled ? "已开启：游客仅能阅读最新一篇档案。" : "已关闭：游客可阅读全部档案。");
+  } catch (error) { input.checked = !input.checked; status("guest-mode-status", error.message, true); }
+  finally { input.disabled = false; }
+});
+const newFormat = () => document.querySelector('input[name="new-format"]:checked')?.value;
+$("new-content").addEventListener("click", () => { for (const option of document.querySelectorAll('input[name="new-format"]')) option.checked = false; $("new-choices").hidden = true; $("import-panel").hidden = true; $("import-url").value = ""; status("new-status", ""); $("new-dialog").showModal(); });
+for (const option of document.querySelectorAll('input[name="new-format"]')) option.addEventListener("change", () => { $("new-choices").hidden = false; $("import-panel").hidden = true; });
 $("new-close").addEventListener("click", () => $("new-dialog").close());
 $("choose-link").addEventListener("click", () => { $("import-panel").hidden = false; $("new-choices").hidden = true; $("import-url").focus(); });
-$("manual").addEventListener("click", () => { $("new-dialog").close(); fill({ format:"article", category:"opportunity", rights:"licensed", status:"draft" }); status("save-status", "已打开空白录入表单。填写后保存并提交审核。"); });
+$("manual").addEventListener("click", () => { const format = newFormat(); $("new-dialog").close(); fill({ format, category:"opportunity", rights:format === "video" ? "embed" : "licensed", status:"draft" }); status("save-status", `已打开空白${format === "video" ? "视频" : "文章"}表单。填写后保存并提交审核。`); });
 $("close-editor").addEventListener("click", () => $("editor").close());
 $("editor-cancel").addEventListener("click", () => { if (canCloseDialog($("editor"))) $("editor").close(); });
 
@@ -678,7 +697,7 @@ $("import").addEventListener("click", async () => {
   if (!url) return status("new-status", "请先粘贴链接。", true);
   $("import").disabled = true; status("new-status", "正在提取原文并将可获取的图片保存到 R2…");
   try {
-    const result = await api("/api/admin/import", { method:"POST", body:JSON.stringify({ url }) });
+    const result = await api("/api/admin/import", { method:"POST", body:JSON.stringify({ url, format:newFormat() }) });
     $("new-dialog").close();
     fill(result.draft);
     const mediaStatus = result.media?.total ? `图片已自动存入 R2：${result.media.saved}/${result.media.total} 张。` : "来源页面未提取到图片。";
@@ -704,6 +723,21 @@ for (const id of ["filter-query","filter-format","filter-status","page-size","co
 $("page-prev").addEventListener("click", () => { if (contentPage > 1) { contentPage--; refreshList(); } });
 $("page-next").addEventListener("click", () => { if (contentPage * Number($("page-size").value) < contentTotal) { contentPage++; refreshList(); } });
 $("delete-cancel").addEventListener("click", () => $("delete-dialog").close());
+$("shred-cancel").addEventListener("click", () => $("shred-dialog").close());
+$("shred-dialog").addEventListener("close", () => { shredding = null; });
+$("shred-code").addEventListener("input", () => { $("shred-confirm").disabled = !shredding || $("shred-code").value.trim() !== shredding.archive_code; });
+$("shred-confirm").addEventListener("click", async () => {
+  if (!shredding || $("shred-code").value.trim() !== shredding.archive_code) return;
+  const article = shredding;
+  $("shred-confirm").disabled = true; $("shred-confirm").dataset.saving = "true";
+  try {
+    const result = await api("/api/admin/shred", { method:"POST", body:JSON.stringify({ id:article.id, archive_code:article.archive_code, revision:article.revision }) });
+    $("shred-dialog").close();
+    status("recycle-status", result.media_cleanup_failed.length ? `${article.archive_code} 已永久删除，但 ${result.media_cleanup_failed.length} 个 R2 素材清理失败，请联系管理员处理。` : `${article.archive_code} 已永久删除，独占素材已清理。`, result.media_cleanup_failed.length > 0);
+    await Promise.all([refreshRecycle(), refreshList(), refreshMedia(), refreshReview(), refreshOverview(), refreshOperations()]);
+  } catch (error) { status("shred-status", error.message, true); }
+  finally { delete $("shred-confirm").dataset.saving; $("shred-confirm").disabled = !shredding || $("shred-code").value.trim() !== shredding.archive_code; }
+});
 $("delete-confirm").addEventListener("click", async () => {
   if (!deleting) return;
   const button = $("delete-confirm"); button.disabled = true;

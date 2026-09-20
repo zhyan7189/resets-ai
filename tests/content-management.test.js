@@ -13,6 +13,7 @@ import { extractMetadata } from "../functions/api/admin/import.js";
 import { extractArticleBody, extractXEmbed, mergeXEmbedBody, onRequestPost as importLink } from "../functions/api/admin/import.js";
 import { onRequestPost as reparseSource } from "../functions/api/admin/reparse.js";
 import { onRequestPost as restoreArchive } from "../functions/api/admin/restore.js";
+import { onRequestPost as shredArchive } from "../functions/api/admin/shred.js";
 import { onRequestGet as overview } from "../functions/api/admin/overview.js";
 import { onRequestPost as reviewContent } from "../functions/api/admin/review.js";
 import { onRequestPost as trackVisit } from "../functions/api/analytics/visit.js";
@@ -23,7 +24,7 @@ import { onRequestGet as getMedia } from "../functions/api/media/[id].js";
 import { onRequestGet as listAdminMedia } from "../functions/api/admin/media.js";
 import { onRequestGet as listAds, onRequestPut as saveAd, onRequestPatch as toggleAd } from "../functions/api/admin/ads.js";
 import { onRequestGet as publicAds } from "../functions/api/ads.js";
-import { cleanArticle, cleanUrl, stripXProfileImages, videoPlayback } from "../lib/articles.js";
+import { cleanArticle, cleanUrl, stripXProfileImages, videoPlayback, mediaManifest } from "../lib/articles.js";
 
 function environment() {
   const sqlite = new DatabaseSync(":memory:");
@@ -65,6 +66,32 @@ const sample = {
   published_at:"2026-09-20", format:"article", category:"tutorial", rights:"summary",
   title:"一个可验证的项目案例", card_title:"项目案例", summary:"先确认需求，再验证是否有人愿意付费。",
 };
+
+test("正文中的图片与文字连在同段时仍纳入媒体清单", () => {
+  const url = "/api/media/12345678-1234-1234-1234-123456789abc.jpg";
+  assert.deepEqual(mediaManifest(`开头 ![配图](${url})\n# 标题`, "", "").map((entry) => entry.url), [url]);
+});
+
+test("回收站粉碎要求正确档案编号与版本，清除相关 D1 记录但保留共享 R2 图", async () => {
+  const env = environment();
+  const key1 = "12345678-1234-1234-1234-123456789abc.jpg";
+  const key2 = "abcdefab-cdef-abcd-abcd-abcdefabcdef.webp";
+  const deleted = [];
+  env.MEDIA = { async delete(key) { deleted.push(key); } };
+  const first = await create({ request:request("/api/admin/articles", "POST", { ...sample, source_url:"https://example.org/one", cover_url:`/api/media/${key1}`, body:`![独占](/api/media/${key2})`, rights:"licensed", rights_confirmed:true }, true), env });
+  const firstId = (await first.json()).id;
+  const other = await create({ request:request("/api/admin/articles", "POST", { ...sample, source_url:"https://example.org/two", cover_url:`/api/media/${key1}` }, true), env });
+  assert.equal(other.status, 201);
+  assert.equal((await shredArchive({ request:request("/api/admin/shred", "POST", { id:firstId, archive_code:"DA1", revision:1 }), env })).status, 401);
+  assert.equal((await shredArchive({ request:request("/api/admin/shred", "POST", { id:firstId, archive_code:"DA1", revision:1 }, true), env })).status, 409);
+  await discard({ request:request("/api/admin/articles", "DELETE", { id:firstId, revision:1 }, true), env });
+  assert.equal((await shredArchive({ request:request("/api/admin/shred", "POST", { id:firstId, archive_code:"DA2", revision:2 }, true), env })).status, 409);
+  const shredded = await shredArchive({ request:request("/api/admin/shred", "POST", { id:firstId, archive_code:"DA1", revision:2 }, true), env });
+  assert.equal(shredded.status, 200);
+  assert.deepEqual(deleted, [key2]);
+  assert.equal((await getAdminItem({ request:request(`/api/admin/item?id=${firstId}`, "GET", undefined, true), env })).status, 404);
+  assert.equal((await listAdminMedia({ request:request("/api/admin/media", "GET", undefined, true), env })).status, 200);
+});
 
 test("后台登录验证不依赖数据库，错误密钥仍被拒绝", async () => {
   const env = { ADMIN_TOKEN:"test-secret" };
@@ -304,6 +331,21 @@ test("X 视频链接从官方嵌入文字补齐摘要并保存可播放地址", 
     assert.equal(draft.format, "video");
     assert.equal(draft.video_url, source);
     assert.match(draft.summary, /影视后期特效/);
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("新建档案明确选择文章或视频，视频链接不能误入文章导入", async () => {
+  const env = environment();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response('<meta property="og:title" content="示例视频"><meta property="og:description" content="视频内容"><meta property="og:type" content="video.other"><meta name="author" content="作者">', { headers:{ "content-type":"text/html" } });
+  try {
+    const url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    const wrong = await importLink({ request:request("/api/admin/import", "POST", { url, format:"article" }, true), env });
+    assert.equal(wrong.status, 400);
+    assert.equal((await wrong.json()).error, "video_link_selected_as_article");
+    const correct = await importLink({ request:request("/api/admin/import", "POST", { url, format:"video" }, true), env });
+    assert.equal(correct.status, 201);
+    assert.equal((await correct.json()).draft.format, "video");
   } finally { globalThis.fetch = realFetch; }
 });
 

@@ -42,6 +42,17 @@ npx wrangler d1 execute resets-ai --remote --file=db/migrations/003-reader-archi
 
 执行后检查 `archive_ids`、`reader_users`、`reader_sessions`、`reader_attempts` 四张表，再部署新版代码。访客只可读取最近发布的 1 篇档案，已注册读者不限篇数；管理员仍使用 `ADMIN_TOKEN` 登录，不与读者账号混用。注册与登录有基于访客 IP 的尝试次数限制，正式开放注册时仍建议在 Cloudflare 配置额外的机器人防护。
 
+### 游客模式开关升级
+
+已有生产库先导出 D1 备份，再执行 [004-guest-mode.sql](db/migrations/004-guest-mode.sql)，最后部署对应代码。该迁移只新增 `site_settings` 表，并将游客限制默认为开启；再次运行不会覆盖控制台中保存的选择。关闭后游客可完整阅读全部已发布档案，重新开启后只可阅读最新一篇。
+
+```sh
+npx wrangler d1 export resets-ai --remote --output /private/tmp/resets-ai-before-004.sql
+npx wrangler d1 execute resets-ai --remote --file=db/migrations/004-guest-mode.sql
+```
+
+部署后检查驾驶舱开关和 `/api/articles` 的 `limited` 字段。回收站“粉碎”会永久删除档案、版本、统计与导入审核记录，并尝试清理仅被该档案引用的 R2 图片；执行前须在界面输入档案编号。R2 清理失败时页面会提示管理员跟进。
+
 后台 API 会校验 `ADMIN_TOKEN`；建议再用 Cloudflare Access 对 `/admin` 和 `/api/admin/*` 设置仅管理员可访问。公开页面只读取状态为 `published` 的记录。授权全文转载由管理员确认；导入链接会尝试提取可访问的正文和图片，无法完整取得时进入“需协助”，不会擅自补写或发布。R2 不可用时外部图片需要人工核对。
 
 未绑定 D1 时，本地预览会使用浏览器本地点击记录，不影响页面查看；后台会明确提示数据库未配置。

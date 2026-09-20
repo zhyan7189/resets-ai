@@ -9,6 +9,7 @@ import { onRequestGet as session } from "../functions/api/reader/session.js";
 import { onRequestGet as list } from "../functions/api/articles/index.js";
 import { onRequestGet as item } from "../functions/api/articles/item.js";
 import { onRequestGet as operations } from "../functions/api/admin/operations.js";
+import { onRequestGet as getGuestMode, onRequestPut as saveGuestMode } from "../functions/api/admin/guest-mode.js";
 
 function fixture() {
   const sqlite = new DatabaseSync(":memory:");
@@ -52,6 +53,29 @@ test("访客看到全部档案但只能完整阅读最新一篇；读者注册�
   const ended = await logout({ request:post("/api/reader/logout", {}, cookie), env });
   assert.equal(ended.status, 200);
   assert.equal((await item({ request:req("/api/articles/item?id=archive-1", { headers:{ cookie } }), env })).status, 403);
+});
+
+test("游客模式仅管理员可修改，关闭后全部公开，重新开启后限制恢复", async () => {
+  const { env } = fixture();
+  const admin = { authorization:"Bearer test-admin", "content-type":"application/json" };
+  assert.equal((await (await getGuestMode({ request:req("/api/admin/guest-mode", { headers:admin }), env })).json()).enabled, true);
+  assert.equal((await saveGuestMode({ request:req("/api/admin/guest-mode", { method:"PUT", body:'{"enabled":false}' }), env })).status, 401);
+  assert.equal((await saveGuestMode({ request:req("/api/admin/guest-mode", { method:"PUT", headers:admin, body:'{"enabled":"false"}' }), env })).status, 400);
+  assert.equal((await saveGuestMode({ request:req("/api/admin/guest-mode", { method:"PUT", headers:admin, body:'{"enabled":false}' }), env })).status, 200);
+  assert.equal((await (await list({ request:req("/api/articles"), env })).json()).limited, false);
+  assert.equal((await item({ request:req("/api/articles/item?id=archive-1"), env })).status, 200);
+  await saveGuestMode({ request:req("/api/admin/guest-mode", { method:"PUT", headers:admin, body:'{"enabled":true}' }), env });
+  assert.equal((await item({ request:req("/api/articles/item?id=archive-1"), env })).status, 403);
+});
+
+test("004 迁移为旧数据库建立游客模式配置且重复执行不覆盖管理员选择", () => {
+  const sqlite = new DatabaseSync(":memory:");
+  const migration = readFileSync(new URL("../db/migrations/004-guest-mode.sql", import.meta.url), "utf8");
+  sqlite.exec(migration);
+  assert.equal(sqlite.prepare("SELECT value FROM site_settings WHERE key='guest_limit_enabled'").get().value, "1");
+  sqlite.prepare("UPDATE site_settings SET value='0' WHERE key='guest_limit_enabled'").run();
+  sqlite.exec(migration);
+  assert.equal(sqlite.prepare("SELECT value FROM site_settings WHERE key='guest_limit_enabled'").get().value, "0");
 });
 
 test("运营中心按状态和点击率筛选排序，并按 10 或 20 条分页", async () => {

@@ -20,7 +20,7 @@ npx wrangler pages dev public --ip 127.0.0.1 --port 8788
 
 已发布档案自动加入首页卡片。访客可阅读最近发布的 1 篇档案，注册读者账号后可阅读全部已发布档案；列表和 `/api/articles/item` 都由服务端检查会话。读者使用 `/register.html` 创建用户名和密码账号，可从注册页进入 `/reader-login.html` 登录；后台仍只有 `ADMIN_TOKEN` 一个管理员凭证，没有管理员注册。读者密码以加盐散列存入 D1，浏览器通过 HttpOnly 会话 Cookie 保持登录。草稿和下架档案不公开。当前无已发布档案或 D1 暂不可用时，首页保留四张人工整理的静态精选卡片；有档案发布后由 D1 档案列表接管。热度榜首仍每小时读取点击量，新增档案发布后可以参与排名。
 
-后台和读者账号需要 D1 绑定 `DB`，后台另需加密环境变量 `ADMIN_TOKEN`。旧数据库需先运行一次 [v2 数据迁移](db/migrations/001-content-console-v2.sql)；已有 v2 数据库升级驾驶舱时需在备份后执行 [002 迁移](db/migrations/002-dashboard-analytics.sql)，读者账号与档案编号需要执行 [003 迁移](db/migrations/003-reader-archives.sql)。新数据库使用 [完整表结构](db/schema.sql)。完整配置见 [DEPLOY.md](DEPLOY.md)。管理密钥不要写入仓库或公开给访客。模型接口为可选项，其调用费用不包含在 Cloudflare 免费托管额度内。
+后台和读者账号需要 D1 绑定 `DB`，后台另需加密环境变量 `ADMIN_TOKEN`。旧数据库需先运行一次 [v2 数据迁移](db/migrations/001-content-console-v2.sql)；已有 v2 数据库升级驾驶舱时需在备份后执行 [002 迁移](db/migrations/002-dashboard-analytics.sql)，读者账号与档案编号需要执行 [003 迁移](db/migrations/003-reader-archives.sql)，游客模式开关需要执行 [004 迁移](db/migrations/004-guest-mode.sql)。新数据库使用 [完整表结构](db/schema.sql)。完整配置见 [DEPLOY.md](DEPLOY.md)。管理密钥不要写入仓库或公开给访客。模型接口为可选项，其调用费用不包含在 Cloudflare 免费托管额度内。
 
 `npm run check` 检查 JavaScript 语法，`npm test` 验证数据转换与接口错误处理。Cloudflare Pages 免费方案的配置步骤见 [DEPLOY.md](DEPLOY.md)。
 

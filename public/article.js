@@ -14,31 +14,7 @@ function safeMediaUrl(value) {
 }
 
 function appendBody(text, container) {
-  const blocks = String(text || "").split(/\n\s*\n/);
-  for (const block of blocks) {
-    const trimmed = block.trim();
-    if (!trimmed) continue;
-    const image = trimmed.match(/^!\[([^\]]*)\]\((https:\/\/[^\s)]+|\/api\/media\/[a-f0-9-]{36}\.(?:jpg|png|webp|gif))\)$/);
-    if (image && safeMediaUrl(image[2])) {
-      const figure = document.createElement("figure");
-      const img = document.createElement("img");
-      img.src = image[2];
-      img.alt = image[1];
-      img.loading = "lazy";
-      figure.append(img);
-      if (image[1]) {
-        const caption = document.createElement("figcaption");
-        caption.textContent = image[1];
-        figure.append(caption);
-      }
-      container.append(figure);
-      continue;
-    }
-    const heading = trimmed.match(/^(#{1,3})\s+([\s\S]+)$/);
-    const element = document.createElement(heading ? heading[1].length === 1 ? "h2" : "h3" : trimmed.startsWith("> ") ? "blockquote" : "p");
-    element.textContent = heading ? heading[2] : trimmed.startsWith("> ") ? trimmed.slice(2) : trimmed;
-    container.append(element);
-  }
+  appendArchiveBody(text, container, { heading:"h2" });
 }
 
 function youtubeEmbed(value) {
@@ -86,6 +62,7 @@ async function main() {
       const video = document.createElement("video"); video.className = "video"; video.src = article.video_url;
       video.controls = true; video.preload = "metadata"; $("body").append(video);
     } else appendBody("该视频暂无法在本站播放，请通过下方原始链接观看。", $("body"));
+    if (article.rights === "licensed" && article.body) appendBody(article.body, $("body"));
     $("credit").textContent = `视频来源：${article.author}（${article.source_name}）。`;
   } else if (article.rights === "licensed") {
     appendBody(article.body, $("body"));

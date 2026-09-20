@@ -4,6 +4,11 @@ CREATE TABLE IF NOT EXISTS article_clicks (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS site_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS article_clicks_rank
   ON article_clicks (clicks DESC, updated_at DESC);
 

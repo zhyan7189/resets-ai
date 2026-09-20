@@ -1,5 +1,6 @@
 import { json, database, mediaManifest, stripXProfileImages } from "../../../lib/articles.js";
 import { reader } from "../../../lib/readers.js";
+import { guestLimitEnabled } from "../../../lib/site-settings.js";
 
 export async function onRequestGet({ request, env }) {
   const missing = database(env);
@@ -10,7 +11,7 @@ export async function onRequestGet({ request, env }) {
     const user = await reader(request, env);
     const article = await env.DB.prepare("SELECT * FROM articles WHERE id = ? AND status = 'published'").bind(id).first();
     if (!article) return json({ error:"not_found" }, 404);
-    if (!user) {
+    if (!user && await guestLimitEnabled(env.DB)) {
       const allowed = await env.DB.prepare("SELECT id FROM articles WHERE status = 'published' ORDER BY COALESCE((SELECT MAX(created_at) FROM review_events WHERE article_id=articles.id AND action='approve'), created_at) DESC, id ASC LIMIT 1").all();
       if (!(allowed.results || []).some((row) => row.id === id)) return json({ error:"registration_required" }, 403);
     }

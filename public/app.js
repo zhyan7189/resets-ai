@@ -497,31 +497,7 @@ function readerMediaUrl(value) {
 }
 
 function appendStoredBody(text, container) {
-  for (const raw of String(text || "").split(/\n\s*\n/)) {
-    const block = raw.trim();
-    if (!block) continue;
-    const image = block.match(/^!\[([^\]]*)\]\((https:\/\/[^\s)]+|\/api\/media\/[a-f0-9-]{36}\.(?:jpg|png|webp|gif))\)$/);
-    if (image && readerMediaUrl(image[2])) {
-      const figure = document.createElement("figure");
-      figure.className = "reader-figure";
-      const img = document.createElement("img");
-      img.src = image[2];
-      img.alt = image[1];
-      img.loading = "lazy";
-      figure.append(img);
-      if (image[1]) {
-        const caption = document.createElement("figcaption");
-        caption.textContent = image[1];
-        figure.append(caption);
-      }
-      container.append(figure);
-      continue;
-    }
-    const heading = block.match(/^(#{1,3})\s+([\s\S]+)$/);
-    const node = document.createElement(heading ? heading[1].length === 1 ? "h3" : "h4" : block.startsWith("> ") ? "blockquote" : "p");
-    node.textContent = heading ? heading[2] : block.startsWith("> ") ? block.slice(2) : block;
-    container.append(node);
-  }
+  appendArchiveBody(text, container, { figureClass:"reader-figure" });
 }
 
 function youtubeEmbedUrl(value) {
@@ -611,6 +587,7 @@ async function openArticleReader(article) {
           const video = document.createElement("video"); video.className = "reader-video";
           video.src = record.video_url; video.controls = true; video.preload = "metadata"; body.append(video);
         } else appendStoredBody("该视频暂无法在本站播放，请通过下方来源链接观看。", body);
+        if (record.rights === "licensed" && record.body) appendStoredBody(record.body, body);
         $("reader-note").textContent = "视频来源已标注于下方。";
       } else if (record.rights === "licensed" && record.body) {
         appendStoredBody(record.body, body);

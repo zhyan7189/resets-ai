@@ -182,7 +182,7 @@ async function mirrorArticleMedia(metadata, env) {
     }
   }));
   return {
-    body:metadata.body.replace(/^!\[([^\]]*)\]\(([^\s)]+)\)\s*$/gm, (raw, alt, url) => copied.has(url) ? `![${alt}](${copied.get(url)})` : raw),
+    body:metadata.body.replace(/!\[([^\]\n]*)\]\(([^\s)]+)\)/g, (raw, alt, url) => copied.has(url) ? `![${alt}](${copied.get(url)})` : raw),
     cover_url:copied.get(metadata.cover_url) || metadata.cover_url,
     missing,
     total:urls.length,
@@ -219,6 +219,8 @@ export async function onRequestPost({ request, env }) {
   if (missing) return missing;
   let payload;
   try { payload = await request.json(); } catch { return json({ error:"invalid_json" }, 400); }
+  const requestedFormat = payload?.format;
+  if (requestedFormat != null && !["article","video"].includes(requestedFormat)) return json({ error:"invalid_format" }, 400);
   let url = cleanUrl(payload?.url);
   if (!url) return json({ error:"invalid_url" }, 400);
   try { url = await resolveShortLink(url); } catch { /* 短链接不可解析时保持原地址，转入人工补全。 */ }
@@ -305,6 +307,13 @@ export async function onRequestPost({ request, env }) {
         }
       } catch { /* 页面和公开接口都不可用时保留人工补全流程。 */ }
     }
+  }
+  if (requestedFormat) {
+    if (requestedFormat === "article" && metadata.format === "video") return json({ error:"video_link_selected_as_article" }, 400);
+    if (requestedFormat === "video" && metadata.format === "article" && sourceAdapter(url) === "x") issues.push("尚未从 X 页面确认是否包含视频；请在审核预览中核对播放器。");
+    metadata.format = requestedFormat;
+    if (requestedFormat === "video" && !metadata.video_url && videoPlayback(url)) metadata.video_url = url;
+    if (requestedFormat === "article") metadata.video_url = "";
   }
   const media = await mirrorArticleMedia(metadata, env);
   metadata.body = media.body;
