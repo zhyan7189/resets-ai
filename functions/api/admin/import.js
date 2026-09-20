@@ -1,4 +1,4 @@
-import { authorized, cleanArticle, cleanMediaUrl, cleanUrl, database, json, mediaManifest, videoPlayback } from "../../../lib/articles.js";
+import { authorized, cleanArticle, cleanMediaUrl, cleanUrl, database, json, mediaManifest, stripXProfileImages, videoPlayback } from "../../../lib/articles.js";
 
 const decode = (value) => String(value || "")
   .replace(/&amp;/gi, "&").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
@@ -38,7 +38,7 @@ export function extractArticleBody(html, sourceUrl) {
       if (value.length > 1) blocks.push(tag.startsWith("h") ? `${"#".repeat(Number(tag[1]))} ${value}` : tag === "blockquote" ? `> ${value}` : value);
     }
   }
-  return blocks.join("\n\n").slice(0, 120000);
+  return stripXProfileImages(blocks.join("\n\n"), sourceUrl).slice(0, 120000);
 }
 
 export function extractMetadata(html, sourceUrl) {

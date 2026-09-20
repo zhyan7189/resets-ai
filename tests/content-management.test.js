@@ -17,7 +17,7 @@ import { onRequestPost as uploadImage } from "../functions/api/admin/upload.js";
 import { onRequestGet as getMedia } from "../functions/api/media/[id].js";
 import { onRequestGet as listAds, onRequestPut as saveAd } from "../functions/api/admin/ads.js";
 import { onRequestGet as publicAds } from "../functions/api/ads.js";
-import { cleanArticle, cleanUrl } from "../lib/articles.js";
+import { cleanArticle, cleanUrl, stripXProfileImages } from "../lib/articles.js";
 
 function environment() {
   const sqlite = new DatabaseSync(":memory:");
@@ -155,6 +155,23 @@ test("来源提供 Article 结构化数据时提取署名和正文草稿", () =>
 test("通用文章提取保持段落和段内图片顺序", () => {
   const body = extractArticleBody('<nav>菜单</nav><article><h2>原始标题</h2><p>第一段<img src="/a.png" alt="图一">后半段</p><p>第二段。</p></article><aside>推荐</aside>', "https://example.org/post");
   assert.equal(body, "## 原始标题\n\n第一段\n\n![图一](https://example.org/a.png)\n\n后半段\n\n第二段。");
+});
+
+test("X 作者头像不会被当成正文配图，已发布旧记录也会过滤", async () => {
+  const avatar = "https://pbs.twimg.com/profile_images/2092152764868816896/IcyU8-cQ_normal.jpg";
+  const photo = "https://pbs.twimg.com/media/HSjbSu0acAAcPNp.jpg";
+  const source = "https://x.com/Mileson07/status/2101167448448004249";
+  const body = `![@Mileson07](${avatar})\n\n正文内容。\n\n![配图](${photo})`;
+  const html = `<article><img src="${avatar}" alt="@Mileson07"><p>正文内容。</p><img src="${photo}" alt="配图"></article>`;
+  assert.equal(extractArticleBody(html, source), `正文内容。\n\n![配图](${photo})`);
+  assert.equal(stripXProfileImages(body, source), `正文内容。\n\n![配图](${photo})`);
+  assert.equal(stripXProfileImages(body, "https://example.org/post"), body);
+  assert.equal(cleanArticle({ ...sample, source_url:source, rights:"licensed", body }).article.body, `正文内容。\n\n![配图](${photo})`);
+  const env = { DB:{ prepare() { return { bind() { return { first:async () => ({ ...sample, id:"old-x-article", source_url:source, body, cover_url:"", video_url:"", status:"published" }) }; } }; } } };
+  const response = await getItem({ request:request("/api/articles/item?id=old-x-article"), env });
+  const { article } = await response.json();
+  assert.equal(article.body, `正文内容。\n\n![配图](${photo})`);
+  assert.equal(JSON.parse(article.media_manifest).length, 1);
 });
 
 test("导入链接写入审核队列并保留原文和任务记录", async () => {
