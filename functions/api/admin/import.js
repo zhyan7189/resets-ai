@@ -9,8 +9,24 @@ export function sourceAdapter(url) {
   const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
   if (["x.com", "twitter.com"].includes(host)) return "x";
   if (["youtube.com", "m.youtube.com", "youtu.be"].includes(host)) return "youtube";
-  if (host === "bilibili.com" || host.endsWith(".bilibili.com")) return "bilibili";
+  if (host === "bilibili.com" || host.endsWith(".bilibili.com") || host === "b23.tv") return "bilibili";
+  if (host === "douyin.com" || host.endsWith(".douyin.com") || host === "iesdouyin.com" || host.endsWith(".iesdouyin.com")) return "douyin";
   return "web";
+}
+
+async function resolveShortLink(value) {
+  let url = value;
+  if (!["v.douyin.com", "b23.tv"].includes(new URL(url).hostname)) return url;
+  for (let step = 0; step < 3; step++) {
+    const response = await fetch(url, { redirect:"manual", signal:AbortSignal.timeout(8000) });
+    if (![301, 302, 303, 307, 308].includes(response.status)) break;
+    const next = cleanUrl(new URL(response.headers.get("location") || "", url).href);
+    if (!next) break;
+    const host = new URL(next).hostname.toLowerCase();
+    if (!(host === "b23.tv" || host === "bilibili.com" || host.endsWith(".bilibili.com") || host === "douyin.com" || host.endsWith(".douyin.com") || host === "iesdouyin.com" || host.endsWith(".iesdouyin.com"))) break;
+    url = next;
+  }
+  return url;
 }
 
 function stripTags(value) { return decode(String(value || "").replace(/<br\s*\/?\s*>/gi, "\n").replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim(); }
@@ -64,7 +80,7 @@ export function extractMetadata(html, sourceUrl) {
     Array.isArray(structured.author) ? structured.author.map((item) => item?.name || "").filter(Boolean).join("、") :
     structured.author?.name || "";
   const body = extractArticleBody(html, sourceUrl) || (typeof structured.articleBody === "string" ? decode(structured.articleBody).slice(0, 120000) : "");
-  const video = /(?:^|\.)youtube\.com$|^youtu\.be$/.test(origin.hostname) ? sourceUrl : "";
+  const video = videoPlayback(sourceUrl) ? sourceUrl : "";
   return {
     source_url:sourceUrl,
     source_name:sourceAdapter(sourceUrl) === "x" ? "X" : meta["og:site_name"] || origin.hostname.replace(/^www\./, ""),
@@ -72,11 +88,21 @@ export function extractMetadata(html, sourceUrl) {
     title:meta["og:title"] || meta["twitter:title"] || structured.headline || structured.name || title,
     summary:meta["og:description"] || meta["twitter:description"] || meta.description || structured.description || "",
     cover_url:image ? cleanUrl(new URL(image, sourceUrl).href) || "" : "",
-    format:["youtube", "bilibili"].includes(sourceAdapter(sourceUrl)) || meta["og:type"] === "video.other" ? "video" : "article",
+    format:["youtube", "bilibili"].includes(sourceAdapter(sourceUrl)) || /video/i.test(meta["og:type"] || "") || /amplify_video_thumb|ext_tw_video_thumb/i.test(image) || sourceAdapter(sourceUrl) === "douyin" && /\/video\//.test(origin.pathname) ? "video" : "article",
     published_at:meta["article:published_time"] || structured.datePublished || "",
     body,
     video_url:video,
   };
+}
+
+export function extractXEmbed(data, sourceUrl) {
+  const origin = new URL(sourceUrl);
+  if (sourceAdapter(sourceUrl) !== "x" || !/^\/[A-Za-z0-9_]{1,15}\/status\/\d{1,20}\/?$/.test(origin.pathname)) return null;
+  if (data?.url && new URL(data.url).pathname !== origin.pathname) return null;
+  const paragraph = String(data?.html || "").match(/<p\b[^>]*>([\s\S]*?)<\/p>/i)?.[1] || "";
+  const text = stripTags(paragraph).replace(/(?:https?:\/\/)?pic\.twitter\.com\/\w+\s*$/i, "").trim();
+  const handle = origin.pathname.split("/")[1];
+  return { author:`@${handle}`, title:data?.author_name ? `${data.author_name} (@${handle}) on X` : `@${handle} on X`, summary:text.slice(0, 180), body:text };
 }
 
 async function readLimited(response) {
@@ -185,13 +211,14 @@ export async function onRequestPost({ request, env }) {
   if (missing) return missing;
   let payload;
   try { payload = await request.json(); } catch { return json({ error:"invalid_json" }, 400); }
-  const url = cleanUrl(payload?.url);
+  let url = cleanUrl(payload?.url);
   if (!url) return json({ error:"invalid_url" }, 400);
+  try { url = await resolveShortLink(url); } catch { /* 短链接不可解析时保持原地址，转入人工补全。 */ }
   try {
     const existing = await env.DB.prepare("SELECT id FROM articles WHERE source_url = ?").bind(url).first();
     if (existing) return json({ error:"duplicate_url", id:existing.id }, 409);
   } catch { return json({ error:"database_unavailable" }, 503); }
-  let metadata = { source_url:url, source_name:new URL(url).hostname, author:"", title:"", summary:"", cover_url:"", published_at:"", format:["youtube", "bilibili"].includes(sourceAdapter(url)) || /\.mp4$/i.test(new URL(url).pathname) ? "video" : "article", body:"", video_url:videoPlayback(url) ? url : "" };
+  let metadata = { source_url:url, source_name:new URL(url).hostname, author:"", title:"", summary:"", cover_url:"", published_at:"", format:["youtube", "bilibili"].includes(sourceAdapter(url)) || sourceAdapter(url) === "douyin" && /\/video\//.test(new URL(url).pathname) || /\.mp4$/i.test(new URL(url).pathname) ? "video" : "article", body:"", video_url:videoPlayback(url) ? url : "" };
   let sourceBody = "";
   let extraction = "blocked";
   const issues = [];
@@ -206,14 +233,77 @@ export async function onRequestPost({ request, env }) {
   } catch {
     issues.push("来源页面无法由服务器读取；请从已授权的原文或作者文件补全。 ");
   }
+  if (sourceAdapter(url) === "x") {
+    try {
+      const endpoint = `https://publish.twitter.com/oembed?url=${encodeURIComponent(url)}&omit_script=true`;
+      const response = await fetch(endpoint, { signal:AbortSignal.timeout(8000) });
+      if (response.ok) {
+        const embed = extractXEmbed(await response.json(), url);
+        if (embed) {
+          metadata.author = embed.author;
+          metadata.title = embed.title;
+          if (!metadata.summary) metadata.summary = embed.summary;
+          if (!sourceBody && embed.body) { sourceBody = embed.body; metadata.body = embed.body; }
+          extraction = embed.body ? "partial" : extraction;
+          if (metadata.format === "video") metadata.video_url = url;
+          if (embed.body) {
+            const blocked = issues.findIndex((issue) => issue.startsWith("来源页面无法由服务器读取"));
+            if (blocked >= 0) issues.splice(blocked, 1);
+          }
+        }
+      }
+    } catch { /* X 嵌入接口不可用时保留人工补全流程。 */ }
+  }
+  if (sourceAdapter(url) === "douyin") {
+    const videoId = new URL(url).pathname.match(/^\/(?:share\/)?video\/(\d{10,20})\/?$/)?.[1];
+    if (videoId) {
+      try {
+        const response = await fetch(`https://open.douyin.com/api/douyin/v1/video/get_iframe_by_video?video_id=${videoId}`, { signal:AbortSignal.timeout(8000) });
+        const data = response.ok ? await response.json() : null;
+        const iframe = String(data?.data?.iframe_code || "").match(/\bsrc=["']([^"']+)["']/i)?.[1];
+        const player = iframe && videoPlayback(decode(iframe));
+        if (data?.err_no === 0 && player?.url.startsWith("https://open.douyin.com/player/video?vid=")) {
+          metadata.format = "video";
+          metadata.video_url = player.url;
+          if (data.data.video_title) metadata.title = String(data.data.video_title).trim().slice(0, 300);
+          if (!metadata.summary) metadata.summary = String(data.data.video_title || "").trim().slice(0, 180);
+          const blocked = issues.findIndex((issue) => issue.startsWith("来源页面无法由服务器读取"));
+          if (blocked >= 0) issues.splice(blocked, 1);
+        }
+      } catch { /* 无法获取官方播放器时由审核人员补全。 */ }
+    }
+  }
+  if (sourceAdapter(url) === "bilibili") {
+    const bvid = new URL(url).pathname.match(/^\/video\/(BV[0-9A-Za-z]{10})\/?$/i)?.[1];
+    if (bvid) {
+      try {
+        const response = await fetch(`https://api.bilibili.com/x/web-interface/view?bvid=${bvid}`, { signal:AbortSignal.timeout(8000) });
+        const data = response.ok ? await response.json() : null;
+        if (data?.code === 0 && data.data?.bvid?.toLowerCase() === bvid.toLowerCase()) {
+          metadata.format = "video";
+          metadata.video_url = url;
+          if (data.data.title) metadata.title = String(data.data.title).slice(0, 300);
+          if (!metadata.summary) metadata.summary = String(data.data.desc || "").replace(/\s+/g, " ").trim().slice(0, 180);
+          if (!metadata.author) metadata.author = String(data.data.owner?.name || "").slice(0, 120);
+          if (!metadata.cover_url && /^https?:\/\//.test(data.data.pic || "")) metadata.cover_url = cleanUrl(String(data.data.pic).replace(/^http:/, "https:")) || "";
+          if (!metadata.published_at && Number.isFinite(data.data.pubdate)) metadata.published_at = new Date(data.data.pubdate * 1000).toISOString().slice(0, 10);
+          if (metadata.title || metadata.summary) {
+            const blocked = issues.findIndex((issue) => issue.startsWith("来源页面无法由服务器读取"));
+            if (blocked >= 0) issues.splice(blocked, 1);
+          }
+        }
+      } catch { /* 页面和公开接口都不可用时保留人工补全流程。 */ }
+    }
+  }
   const media = await mirrorArticleMedia(metadata, env);
   metadata.body = media.body;
   metadata.cover_url = media.cover_url;
   issues.push(...media.missing);
+  if (!metadata.summary && sourceBody) metadata.summary = sourceBody.replace(/^!\[[^\]]*\]\([^\n]+\)$/gm, "").replace(/^[#>]\s*/gm, "").replace(/\s+/g, " ").trim().slice(0, 180);
   if (!metadata.title) issues.push("缺少原标题");
   if (!metadata.author || metadata.author === "@") issues.push("缺少作者 ID");
   if (metadata.format === "article" && !metadata.body) issues.push("缺少完整正文与图片顺序");
-  if (metadata.format === "video" && !videoPlayback(metadata.video_url || url)) issues.push("未取得可站内播放的视频地址");
+  if (metadata.format === "video" && !videoPlayback(metadata.video_url || url)) issues.push("未取得可站内播放的视频地址；抖音视频需使用完整视频链接以获取官方播放器");
   const ai = await enrich(metadata, env);
   if (!metadata.summary && !ai?.summary) issues.push("缺少首页卡片摘要");
   const rights = metadata.format === "video" && videoPlayback(metadata.video_url || url) ? "embed" : "licensed";

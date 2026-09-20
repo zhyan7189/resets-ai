@@ -530,8 +530,18 @@ function youtubeEmbedUrl(value) {
   const parsed = new URL(url);
   let id = "";
   if (["youtube.com", "www.youtube.com", "m.youtube.com"].includes(parsed.hostname)) id = parsed.searchParams.get("v") || "";
+  if (["youtube.com", "www.youtube.com", "m.youtube.com"].includes(parsed.hostname) && !id) id = parsed.pathname.match(/^\/(?:shorts|live|embed)\/([A-Za-z0-9_-]{11})\/?$/)?.[1] || "";
   if (parsed.hostname === "youtu.be") id = parsed.pathname.slice(1);
-  return /^[a-zA-Z0-9_-]{11}$/.test(id) ? `https://www.youtube-nocookie.com/embed/${id}` : "";
+  if (/^[a-zA-Z0-9_-]{11}$/.test(id)) return `https://www.youtube-nocookie.com/embed/${id}`;
+  const xPost = ["x.com","www.x.com","twitter.com","www.twitter.com"].includes(parsed.hostname) ? parsed.pathname.match(/^\/[A-Za-z0-9_]{1,15}\/status\/(\d{1,20})\/?$/) : null;
+  if (xPost) return `https://platform.twitter.com/embed/Tweet.html?id=${xPost[1]}`;
+  if (parsed.hostname === "open.douyin.com" && parsed.pathname === "/player/video" && /^\d{10,20}$/.test(parsed.searchParams.get("vid") || "")) return `https://open.douyin.com/player/video?vid=${parsed.searchParams.get("vid")}&autoplay=0`;
+  const bili = ["bilibili.com","www.bilibili.com","m.bilibili.com"].includes(parsed.hostname) ? parsed.pathname.match(/^\/video\/(BV[0-9A-Za-z]{10})\/?$/i) : null;
+  if (bili) {
+    const page = Number.parseInt(parsed.searchParams.get("p") || "1", 10);
+    return `https://player.bilibili.com/player.html?bvid=${bili[1]}${page > 1 && page <= 1000 ? `&p=${page}` : ""}`;
+  }
+  return "";
 }
 
 let readerRequest = 0;
@@ -589,28 +599,22 @@ async function openArticleReader(article) {
       source.href = record.source_url;
       source.textContent = `信息来源：${record.author}（${record.source_name}） ↗`;
       source.hidden = false;
-      if (record.rights === "licensed" && record.body) {
-        appendStoredBody(record.body, body);
-        $("reader-note").textContent = "已获授权转载 · 正文和配图来自原作者。";
-      } else if (record.format === "video" && record.rights === "embed") {
-        const embed = youtubeEmbedUrl(record.video_url);
+      if (record.format === "video" && (record.rights === "embed" || youtubeEmbedUrl(record.video_url || record.source_url))) {
+        const embed = youtubeEmbedUrl(record.video_url || record.source_url);
         if (embed) {
           const iframe = document.createElement("iframe");
-          iframe.className = "reader-video";
-          iframe.src = embed;
-          iframe.title = record.title;
+          iframe.className = "reader-video"; iframe.src = embed; iframe.title = record.title;
+          if (embed.startsWith("https://platform.twitter.com/")) iframe.classList.add("x-embed");
           iframe.allow = "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share";
-          iframe.allowFullscreen = true;
-          body.append(iframe);
+          iframe.allowFullscreen = true; body.append(iframe);
         } else if (/^https:\/\/[^\s]+\.mp4(?:\?[^\s]*)?$/i.test(record.video_url || "")) {
-          const video = document.createElement("video");
-          video.className = "reader-video";
-          video.src = record.video_url;
-          video.controls = true;
-          video.preload = "metadata";
-          body.append(video);
+          const video = document.createElement("video"); video.className = "reader-video";
+          video.src = record.video_url; video.controls = true; video.preload = "metadata"; body.append(video);
         } else appendStoredBody("该视频暂无法在本站播放，请通过下方来源链接观看。", body);
         $("reader-note").textContent = "视频来源已标注于下方。";
+      } else if (record.rights === "licensed" && record.body) {
+        appendStoredBody(record.body, body);
+        $("reader-note").textContent = "已获授权转载 · 正文和配图来自原作者。";
       } else {
         appendStoredBody("本站目前仅收录这篇内容的导读，全文请查看原始来源。", body);
         $("reader-note").textContent = "本站导读 · 原始内容由作者发布。";

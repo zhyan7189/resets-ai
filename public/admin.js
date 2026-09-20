@@ -24,6 +24,7 @@ let selectedMediaArchive = null;
 let operationsPage = 1;
 let operationsTotal = 0;
 let deleting = null;
+let dashboardRanks = { heat:[], ctr:[] };
 
 document.body.append($("editor"));
 
@@ -98,7 +99,7 @@ async function api(path, options = {}) {
       import_save_failed:"导入结果无法入库，请检查 v2 数据库迁移", articles_unavailable:"档案列表不可用，请检查 v2 数据库迁移",
       publication_fields_required:"发布前须填写标题、摘要、来源和作者", licensed_body_required:"授权转载须填写全文",
       rights_confirmation_required:"发布授权全文前请勾选授权与素材核对", embed_requires_video:"视频播放只适用于视频内容",
-      embed_video_required:"请填写视频地址", video_not_playable:"当前仅支持 YouTube 或 HTTPS MP4 站内播放",
+      embed_video_required:"请填写视频地址", video_not_playable:"当前支持 X、B 站、YouTube 或 HTTPS MP4 站内播放；抖音需通过完整视频链接取得官方播放器",
       revision_conflict:"文章已在其他页面修改，请重新打开后再保存", invalid_source_url:"原始链接须为有效 HTTPS 地址",
       media_unconfigured:"尚未绑定 R2 图片存储", invalid_image_size:"图片须为 12 字节至 8 MB",
       unsupported_image:"仅支持 JPG、PNG、WebP 和 GIF",
@@ -120,8 +121,12 @@ function playable(value) {
     const url = new URL(value);
     if (url.protocol !== "https:") return false;
     if (/\.mp4$/i.test(url.pathname)) return true;
+    if (["x.com","www.x.com","twitter.com","www.twitter.com"].includes(url.hostname) && /^\/[A-Za-z0-9_]{1,15}\/status\/\d{1,20}\/?$/.test(url.pathname)) return true;
+    if (["bilibili.com","www.bilibili.com","m.bilibili.com"].includes(url.hostname) && /^\/video\/BV[0-9A-Za-z]{10}\/?$/i.test(url.pathname)) return true;
+    if (url.hostname === "open.douyin.com" && url.pathname === "/player/video" && /^\d{10,20}$/.test(url.searchParams.get("vid") || "")) return true;
     const id = ["youtube.com","www.youtube.com","m.youtube.com"].includes(url.hostname) ? url.searchParams.get("v") : url.hostname === "youtu.be" ? url.pathname.slice(1) : "";
-    return /^[a-zA-Z0-9_-]{11}$/.test(id || "");
+    const pathId = ["youtube.com","www.youtube.com","m.youtube.com"].includes(url.hostname) ? url.pathname.match(/^\/(?:shorts|live|embed)\/([A-Za-z0-9_-]{11})\/?$/)?.[1] : "";
+    return /^[a-zA-Z0-9_-]{11}$/.test(id || pathId || "");
   } catch { return false; }
 }
 
@@ -131,13 +136,22 @@ function previewVideo(value, container) {
   try { url = new URL(value); } catch { return previewBody("视频地址待补全。", container); }
   let id = "";
   if (["youtube.com","www.youtube.com","m.youtube.com"].includes(url.hostname)) id = url.searchParams.get("v") || "";
+  if (["youtube.com","www.youtube.com","m.youtube.com"].includes(url.hostname) && !id) id = url.pathname.match(/^\/(?:shorts|live|embed)\/([A-Za-z0-9_-]{11})\/?$/)?.[1] || "";
   if (url.hostname === "youtu.be") id = url.pathname.slice(1);
+  const xPost = ["x.com","www.x.com","twitter.com","www.twitter.com"].includes(url.hostname) ? url.pathname.match(/^\/[A-Za-z0-9_]{1,15}\/status\/(\d{1,20})\/?$/) : null;
+  const bili = ["bilibili.com","www.bilibili.com","m.bilibili.com"].includes(url.hostname) ? url.pathname.match(/^\/video\/(BV[0-9A-Za-z]{10})\/?$/i) : null;
+  const douyin = url.hostname === "open.douyin.com" && url.pathname === "/player/video" && /^\d{10,20}$/.test(url.searchParams.get("vid") || "") ? url.searchParams.get("vid") : null;
   if (/^[a-zA-Z0-9_-]{11}$/.test(id)) {
     const iframe = document.createElement("iframe"); iframe.src = `https://www.youtube-nocookie.com/embed/${id}`;
     iframe.title = "视频播放检查"; iframe.allowFullscreen = true; container.append(iframe);
+  } else if (url.protocol === "https:" && (xPost || bili || douyin)) {
+    const page = Number.parseInt(url.searchParams.get("p") || "1", 10);
+    const iframe = document.createElement("iframe"); iframe.src = xPost ? `https://platform.twitter.com/embed/Tweet.html?id=${xPost[1]}` : bili ? `https://player.bilibili.com/player.html?bvid=${bili[1]}${page > 1 && page <= 1000 ? `&p=${page}` : ""}` : `https://open.douyin.com/player/video?vid=${douyin}&autoplay=0`;
+    if (xPost) iframe.classList.add("x-embed");
+    iframe.title = "视频播放检查"; iframe.allowFullscreen = true; container.append(iframe);
   } else if (url.protocol === "https:" && /\.mp4$/i.test(url.pathname)) {
     const video = document.createElement("video"); video.src = url.href; video.controls = true; video.preload = "metadata"; container.append(video);
-  } else previewBody("目前无法在本站播放该链接，请补充 YouTube 或 HTTPS MP4 地址。", container);
+  } else previewBody("目前无法在本站播放该链接，请补充平台支持的嵌入链接或 HTTPS MP4 地址。", container);
 }
 
 function previewBody(body, container) {
@@ -276,8 +290,9 @@ async function refreshOverview() {
   $("metric-visits").textContent = overview.analytics?.ready ? Number(overview.analytics.total_visits).toLocaleString("zh-CN") : "待接入";
   drawChart("visits-chart", overview.analytics?.visits || [], "pageviews", overview.analytics?.ready);
   drawChart("reads-chart", overview.analytics?.reads || [], "clicks", overview.analytics?.ready);
-  drawRanks("heat-list", overview.analytics?.heat || [], (item) => `${item.clicks} 次点击`);
-  drawRanks("ctr-list", overview.analytics?.ctr || [], (item) => `${(100 * item.clicks / item.impressions).toFixed(1)}% · ${item.impressions} 次曝光`);
+  dashboardRanks = { heat:overview.analytics?.heat || [], ctr:overview.analytics?.ctr || [] };
+  renderDashboardRanks();
+  setReviewAlert(Number(overview.counts.review || 0));
   setHealth("d1", true, "正常");
   setHealth("r2", overview.integrations.r2, overview.integrations.r2 ? "已绑定" : "未绑定");
   setHealth("ai", overview.integrations.ai, overview.integrations.ai ? "已配置" : "未配置（可选）");
@@ -331,6 +346,21 @@ function drawRanks(id, items, valueText) {
     const value = document.createElement("b"); value.textContent = valueText(item);
     row.append(label, value); container.append(row);
   }
+}
+
+function renderDashboardRanks() {
+  const heat = [...dashboardRanks.heat].sort((a, b) => (Number(a.clicks) - Number(b.clicks)) * ($("heat-sort").value === "desc" ? -1 : 1));
+  const ctr = [...dashboardRanks.ctr].sort((a, b) => (Number(a.clicks) / Number(a.impressions) - Number(b.clicks) / Number(b.impressions)) * ($("ctr-sort").value === "desc" ? -1 : 1));
+  drawRanks("heat-list", heat, (item) => `${item.clicks} 次点击`);
+  drawRanks("ctr-list", ctr, (item) => `${(100 * item.clicks / item.impressions).toFixed(1)}% · ${item.impressions} 次曝光`);
+}
+
+for (const id of ["heat-sort", "ctr-sort"]) $(id).addEventListener("change", renderDashboardRanks);
+
+function setReviewAlert(count) {
+  const light = $("review-alert");
+  light.hidden = count < 1;
+  light.title = count > 0 ? `${count} 条档案待审核` : "";
 }
 
 async function refreshMedia() {
@@ -492,6 +522,8 @@ async function loadVersions() {
 }
 
 async function refreshReview() {
+  const pending = await api("/api/admin/articles?status=review&page=1&page_size=10");
+  setReviewAlert(Number(pending.total || 0));
   const params = new URLSearchParams({ status:reviewFilter, page:String(reviewPage), page_size:"20" });
   const data = await api(`/api/admin/articles?${params}`);
   reviewTotal = Number(data.total || 0);
@@ -531,8 +563,8 @@ async function openReviewPreview(id, canReview) {
     const cardCover = $("review-card-cover"); cardCover.hidden = cover.hidden;
     if (!cardCover.hidden) cardCover.src = article.cover_url;
     $("review-source").href = article.source_url;
-    if (article.rights === "licensed") previewBody(article.body, $("review-body"));
-    else if (article.rights === "embed") previewVideo(article.video_url, $("review-body"));
+    if (article.format === "video") previewVideo(article.video_url || article.source_url, $("review-body"));
+    else if (article.rights === "licensed") previewBody(article.body, $("review-body"));
     else previewBody("本站目前仅收录这篇内容的导读，全文请查看原始来源。", $("review-body"));
     $("review-actions").hidden = !canReview;
     $("reject-box").hidden = true;

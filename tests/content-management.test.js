@@ -10,7 +10,7 @@ import { onRequestGet as getItem } from "../functions/api/articles/item.js";
 import { onRequestPost as click } from "../functions/api/articles/click.js";
 import { onRequestGet as popular } from "../functions/api/articles/popular.js";
 import { extractMetadata } from "../functions/api/admin/import.js";
-import { extractArticleBody, onRequestPost as importLink } from "../functions/api/admin/import.js";
+import { extractArticleBody, extractXEmbed, onRequestPost as importLink } from "../functions/api/admin/import.js";
 import { onRequestGet as overview } from "../functions/api/admin/overview.js";
 import { onRequestPost as reviewContent } from "../functions/api/admin/review.js";
 import { onRequestPost as trackVisit } from "../functions/api/analytics/visit.js";
@@ -21,7 +21,7 @@ import { onRequestGet as getMedia } from "../functions/api/media/[id].js";
 import { onRequestGet as listAdminMedia } from "../functions/api/admin/media.js";
 import { onRequestGet as listAds, onRequestPut as saveAd, onRequestPatch as toggleAd } from "../functions/api/admin/ads.js";
 import { onRequestGet as publicAds } from "../functions/api/ads.js";
-import { cleanArticle, cleanUrl, stripXProfileImages } from "../lib/articles.js";
+import { cleanArticle, cleanUrl, stripXProfileImages, videoPlayback } from "../lib/articles.js";
 
 function environment() {
   const sqlite = new DatabaseSync(":memory:");
@@ -190,6 +190,107 @@ test("发布前校验署名、授权正文与嵌入地址", () => {
   assert.equal(cleanUrl("http://example.com"), null);
   assert.equal(cleanUrl("https://127.0.0.1/private"), null);
   assert.equal(cleanArticle({ ...sample, cover_url:"/api/media/12345678-1234-1234-1234-123456789abc.png" }).article.cover_url, "/api/media/12345678-1234-1234-1234-123456789abc.png");
+});
+
+test("X、B 站、抖音官方播放器地址被识别，其他站点同形链接不被信任", () => {
+  assert.equal(videoPlayback("https://x.com/Hss1128_/status/2101250885955555508").url, "https://platform.twitter.com/embed/Tweet.html?id=2101250885955555508");
+  assert.equal(videoPlayback("https://www.bilibili.com/video/BV1B7411m7LV").url, "https://player.bilibili.com/player.html?bvid=BV1B7411m7LV");
+  assert.equal(videoPlayback("https://www.bilibili.com/video/BV1B7411m7LV?p=2").url, "https://player.bilibili.com/player.html?bvid=BV1B7411m7LV&p=2");
+  assert.equal(videoPlayback("https://www.youtube.com/shorts/abcdefghijk").url, "https://www.youtube-nocookie.com/embed/abcdefghijk");
+  assert.equal(videoPlayback("https://open.douyin.com/player/video?vid=7542437906955144448&autoplay=0").url, "https://open.douyin.com/player/video?vid=7542437906955144448&autoplay=0");
+  assert.equal(videoPlayback("https://evil.example/status/2101250885955555508"), null);
+});
+
+test("X 官方嵌入文字可生成有来源的摘要，视频缩略图只用于判断内容形式", () => {
+  const source = "https://x.com/Hss1128_/status/2101250885955555508";
+  const embed = extractXEmbed({ url:source, author_name:"黄白", html:'<blockquote><p lang="zh">用这个skill⬇️，可以做出这样的影视后期特效 <a href="https://t.co/a">pic.twitter.com/a</a></p></blockquote>' }, source);
+  assert.equal(embed.author, "@Hss1128_");
+  assert.match(embed.summary, /影视后期特效/);
+  assert.doesNotMatch(embed.summary, /pic\.twitter/);
+  const metadata = extractMetadata('<meta property="og:image" content="https://pbs.twimg.com/amplify_video_thumb/123/img/x.jpg">', source);
+  assert.equal(metadata.format, "video");
+});
+
+test("抖音完整链接调用官方接口，生成可审核的视频草稿", async () => {
+  const env = environment();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => String(url).includes("get_iframe_by_video") ?
+    Response.json({ err_no:0, data:{ iframe_code:'<iframe src="https://open.douyin.com/player/video?vid=7542437906955144448&amp;autoplay=0"></iframe>', video_title:"视频标题与内容介绍" } }) :
+    new Response("不可读", { status:403 });
+  try {
+    const response = await importLink({ request:request("/api/admin/import", "POST", { url:"https://www.douyin.com/video/7542437906955144448" }, true), env });
+    assert.equal(response.status, 201);
+    const { draft } = await response.json();
+    assert.equal(draft.format, "video");
+    assert.equal(draft.video_url, "https://open.douyin.com/player/video?vid=7542437906955144448&autoplay=0");
+    assert.equal(draft.summary, "视频标题与内容介绍");
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("抖音短链先解析为平台完整视频地址", async () => {
+  const env = environment();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => String(url) === "https://v.douyin.com/abc" ?
+    new Response(null, { status:302, headers:{ location:"https://www.douyin.com/video/7542437906955144448" } }) :
+    String(url).includes("get_iframe_by_video") ?
+      Response.json({ err_no:0, data:{ iframe_code:'<iframe src="https://open.douyin.com/player/video?vid=7542437906955144448"></iframe>', video_title:"视频说明" } }) :
+      new Response("受限", { status:403 });
+  try {
+    const response = await importLink({ request:request("/api/admin/import", "POST", { url:"https://v.douyin.com/abc" }, true), env });
+    assert.equal(response.status, 201);
+    const { draft } = await response.json();
+    assert.equal(draft.source_url, "https://www.douyin.com/video/7542437906955144448");
+    assert.equal(draft.video_url, "https://open.douyin.com/player/video?vid=7542437906955144448&autoplay=0");
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("X 视频链接从官方嵌入文字补齐摘要并保存可播放地址", async () => {
+  const env = environment();
+  const realFetch = globalThis.fetch;
+  const source = "https://x.com/Hss1128_/status/2101250885955555508";
+  globalThis.fetch = async (url) => String(url).includes("publish.twitter.com/oembed") ?
+    Response.json({ url:source, author_name:"黄白", html:'<blockquote><p>用这个skill，可以做出这样的影视后期特效</p></blockquote>' }) :
+    new Response('<meta property="og:image" content="https://pbs.twimg.com/amplify_video_thumb/123/img/x.jpg"><meta property="og:title" content="视频档案">', { headers:{ "content-type":"text/html" } });
+  try {
+    const response = await importLink({ request:request("/api/admin/import", "POST", { url:source }, true), env });
+    assert.equal(response.status, 201);
+    const { draft } = await response.json();
+    assert.equal(draft.format, "video");
+    assert.equal(draft.video_url, source);
+    assert.match(draft.summary, /影视后期特效/);
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("B 站短链只跟随本站重定向后生成官方播放器地址", async () => {
+  const env = environment();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => String(url) === "https://b23.tv/abc" ?
+    new Response(null, { status:302, headers:{ location:"https://www.bilibili.com/video/BV1B7411m7LV" } }) :
+    new Response('<meta property="og:title" content="B 站视频"><meta property="og:description" content="视频介绍"><meta name="author" content="作者">', { headers:{ "content-type":"text/html" } });
+  try {
+    const response = await importLink({ request:request("/api/admin/import", "POST", { url:"https://b23.tv/abc" }, true), env });
+    assert.equal(response.status, 201);
+    const { draft } = await response.json();
+    assert.equal(draft.source_url, "https://www.bilibili.com/video/BV1B7411m7LV");
+    assert.equal(draft.video_url, draft.source_url);
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("B 站页面受限时用公开稿件信息补标题、摘要和作者", async () => {
+  const env = environment();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => String(url).includes("api.bilibili.com/x/web-interface/view") ?
+    Response.json({ code:0, data:{ bvid:"BV1B7411m7LV", title:"示例视频标题", desc:"来自视频作者的简介", owner:{ name:"视频作者" }, pubdate:1584949882 } }) :
+    new Response("受限", { status:412 });
+  try {
+    const response = await importLink({ request:request("/api/admin/import", "POST", { url:"https://www.bilibili.com/video/BV1B7411m7LV" }, true), env });
+    assert.equal(response.status, 201);
+    const { draft } = await response.json();
+    assert.equal(draft.title, "示例视频标题");
+    assert.equal(draft.summary, "来自视频作者的简介");
+    assert.equal(draft.author, "视频作者");
+    assert.equal(draft.status, "review");
+  } finally { globalThis.fetch = realFetch; }
 });
 
 test("图片上传须鉴权，并可经公开图片地址读取", async () => {

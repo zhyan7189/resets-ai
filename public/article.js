@@ -47,8 +47,18 @@ function youtubeEmbed(value) {
   const parsed = new URL(url);
   let id = "";
   if (["youtube.com", "www.youtube.com", "m.youtube.com"].includes(parsed.hostname)) id = parsed.searchParams.get("v") || "";
+  if (["youtube.com", "www.youtube.com", "m.youtube.com"].includes(parsed.hostname) && !id) id = parsed.pathname.match(/^\/(?:shorts|live|embed)\/([A-Za-z0-9_-]{11})\/?$/)?.[1] || "";
   if (parsed.hostname === "youtu.be") id = parsed.pathname.slice(1);
-  return /^[a-zA-Z0-9_-]{11}$/.test(id) ? `https://www.youtube-nocookie.com/embed/${id}` : null;
+  if (/^[a-zA-Z0-9_-]{11}$/.test(id)) return `https://www.youtube-nocookie.com/embed/${id}`;
+  const xPost = ["x.com","www.x.com","twitter.com","www.twitter.com"].includes(parsed.hostname) ? parsed.pathname.match(/^\/[A-Za-z0-9_]{1,15}\/status\/(\d{1,20})\/?$/) : null;
+  if (xPost) return `https://platform.twitter.com/embed/Tweet.html?id=${xPost[1]}`;
+  if (parsed.hostname === "open.douyin.com" && parsed.pathname === "/player/video" && /^\d{10,20}$/.test(parsed.searchParams.get("vid") || "")) return `https://open.douyin.com/player/video?vid=${parsed.searchParams.get("vid")}&autoplay=0`;
+  const bili = ["bilibili.com","www.bilibili.com","m.bilibili.com"].includes(parsed.hostname) ? parsed.pathname.match(/^\/video\/(BV[0-9A-Za-z]{10})\/?$/i) : null;
+  if (bili) {
+    const page = Number.parseInt(parsed.searchParams.get("p") || "1", 10);
+    return `https://player.bilibili.com/player.html?bvid=${bili[1]}${page > 1 && page <= 1000 ? `&p=${page}` : ""}`;
+  }
+  return null;
 }
 
 async function main() {
@@ -65,31 +75,21 @@ async function main() {
   $("summary").hidden = false;
   const cover = safeMediaUrl(article.cover_url);
   if (cover) { $("cover").src = cover; $("cover").style.display = "block"; }
-  if (article.rights === "licensed") {
+  if (article.format === "video" && (article.rights === "embed" || youtubeEmbed(article.video_url || article.source_url))) {
+    const src = youtubeEmbed(article.video_url || article.source_url);
+    if (src) {
+      const iframe = document.createElement("iframe"); iframe.className = "video"; iframe.src = src;
+      if (src.startsWith("https://platform.twitter.com/")) iframe.classList.add("x-embed");
+      iframe.title = article.title; iframe.allow = "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share";
+      iframe.allowFullscreen = true; iframe.referrerPolicy = "strict-origin-when-cross-origin"; $("body").append(iframe);
+    } else if (/^https:\/\/[^\s]+\.mp4(?:\?[^\s]*)?$/i.test(article.video_url || "")) {
+      const video = document.createElement("video"); video.className = "video"; video.src = article.video_url;
+      video.controls = true; video.preload = "metadata"; $("body").append(video);
+    } else appendBody("该视频暂无法在本站播放，请通过下方原始链接观看。", $("body"));
+    $("credit").textContent = `视频来源：${article.author}（${article.source_name}）。`;
+  } else if (article.rights === "licensed") {
     appendBody(article.body, $("body"));
     $("credit").textContent = `本文经授权转载，来源：${article.author}（${article.source_name}）。`;
-  } else if (article.rights === "embed") {
-    const src = youtubeEmbed(article.video_url);
-    if (src) {
-      const iframe = document.createElement("iframe");
-      iframe.className = "video";
-      iframe.src = src;
-      iframe.title = article.title;
-      iframe.allow = "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share";
-      iframe.allowFullscreen = true;
-      iframe.referrerPolicy = "strict-origin-when-cross-origin";
-      $("body").append(iframe);
-    } else if (/^https:\/\/[^\s]+\.mp4(?:\?[^\s]*)?$/i.test(article.video_url || "")) {
-      const video = document.createElement("video");
-      video.className = "video";
-      video.src = article.video_url;
-      video.controls = true;
-      video.preload = "metadata";
-      $("body").append(video);
-    } else {
-      appendBody("该平台暂不支持站内嵌入，请通过下方原始链接观看。", $("body"));
-    }
-    $("credit").textContent = `视频来源：${article.author}（${article.source_name}）。`;
   } else {
     $("credit").textContent = `本站导读。原内容由 ${article.author} 发布于 ${article.source_name}。`;
   }
