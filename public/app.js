@@ -48,6 +48,10 @@ let activeTooltip = null;
 let pleaState = { cycleId:"", count:null, localCount:0 };
 let popularArticle = null;
 let localArticleClicks = readLocalArticleClicks();
+let impressionObserver;
+const seenImpressions = new Set();
+
+fetch("/api/analytics/visit", { method:"POST", keepalive:true }).catch(() => {});
 
 function readLocalArticleClicks() {
   try {
@@ -401,6 +405,17 @@ historyScroll.addEventListener("scroll", () => {
 function renderArticles(filter = "all") {
   activeArticleFilter = filter;
   const grid = $("article-grid");
+  impressionObserver?.disconnect();
+  if ("IntersectionObserver" in window) impressionObserver = new IntersectionObserver((items) => {
+    const ids = [];
+    for (const item of items) {
+      if (!item.isIntersecting || seenImpressions.has(item.target.dataset.articleId)) continue;
+      const id = item.target.dataset.articleId;
+      if (!id) continue;
+      seenImpressions.add(id); ids.push(id); impressionObserver.unobserve(item.target);
+    }
+    if (ids.length) fetch("/api/analytics/impression", { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ article_ids:ids }), keepalive:true }).catch(() => {});
+  }, { threshold:.35 });
   grid.replaceChildren();
   const shown = articles.filter((item) => (filter === "all" || item.category === filter) &&
     (!articleSearch || [item.title, item.summary, item.source].join(" ").toLocaleLowerCase().includes(articleSearch)));
@@ -411,6 +426,7 @@ function renderArticles(filter = "all") {
     card.setAttribute("aria-label", `打开文章：${article.title}`);
     card.addEventListener("click", () => recordArticleClick(article), { capture:true });
     card.addEventListener("click", () => openArticleReader(article));
+    if (article.articleType === "database" && impressionObserver) { card.dataset.articleId = article.id; impressionObserver.observe(card); }
     const kicker = document.createElement("span");
     kicker.className = "article-kicker";
     kicker.textContent = article.label;

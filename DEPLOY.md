@@ -18,6 +18,19 @@
 5. 可选：添加 `AI_API_URL`、`AI_API_KEY`、`AI_MODEL`，让链接导入额外生成中文卡片文案。模型接口须兼容 Chat Completions JSON 输出；未配置时仍可提取元数据并手动编辑。模型调用可能产生费用。
 6. 可选：创建 R2 bucket，在 Pages 项目的 Settings → Bindings 中添加 R2 绑定，变量名填写 `MEDIA`，然后重新部署。解析链接时，可读取的封面和文章图片会自动存入 R2（JPG、PNG、WebP 或 GIF；每张不超过 8 MB，单次最多 24 张），由本站的 `/api/media/...` 读取。未绑定 R2 或来源图片无法读取时保留外部 HTTPS 图片地址，并在后台提示核对。R2 免费额度和账户开通要求以 [官方定价](https://developers.cloudflare.com/r2/pricing/) 为准。
 
+### 已有 D1 的驾驶舱升级
+
+新版驾驶舱、人工审核记录及访问统计需要额外三张表。已有生产库先在 Cloudflare D1 页面导出备份，再执行 [002-dashboard-analytics.sql](db/migrations/002-dashboard-analytics.sql)。全新空库直接使用 `db/schema.sql`，无需再执行 002。迁移只新增表和索引，不改动既有文章及点击记录。统计从迁移完成并部署新版代码后开始累计；“累计阅读”继续使用原有点击记录，“累计访问”不会补算历史流量。
+
+如使用 Wrangler：
+
+```sh
+npx wrangler d1 export resets-ai --remote --output /private/tmp/resets-ai-before-002.sql
+npx wrangler d1 execute resets-ai --remote --file=db/migrations/002-dashboard-analytics.sql
+```
+
+执行后，在 D1 控制台确认 `site_visits_daily`、`article_metrics_daily`、`review_events` 已出现，再部署新版代码。生产环境的 Pages 项目仍需保持 `DB`、`MEDIA` 和加密的 `ADMIN_TOKEN` 绑定。
+
 后台 API 会校验 `ADMIN_TOKEN`；建议再用 Cloudflare Access 对 `/admin` 和 `/api/admin/*` 设置仅管理员可访问。公开页面只读取状态为 `published` 的记录。授权全文转载由管理员确认；导入链接会尝试提取可访问的正文和图片，无法完整取得时进入“需协助”，不会擅自补写或发布。R2 不可用时外部图片需要人工核对。
 
 未绑定 D1 时，本地预览会使用浏览器本地点击记录，不影响页面查看；后台会明确提示数据库未配置。

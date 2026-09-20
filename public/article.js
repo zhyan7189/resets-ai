@@ -1,5 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const categories = { opportunity:"机会资讯", tutorial:"实操教程", tools:"工具观察", case:"创业案例", pitfall:"避坑经验" };
+fetch("/api/analytics/visit", { method:"POST", keepalive:true }).catch(() => {});
 
 function safeUrl(value) {
   try {

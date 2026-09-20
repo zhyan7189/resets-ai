@@ -25,6 +25,10 @@ export async function onRequestPost({ request, env }) {
         clicks = article_clicks.clicks + 1,
         updated_at = CURRENT_TIMESTAMP
     `).bind(articleId).run();
+    try {
+      await env.DB.prepare(`INSERT INTO article_metrics_daily (article_id,day,clicks) VALUES (?,date('now'),1)
+        ON CONFLICT(article_id,day) DO UPDATE SET clicks=clicks+1`).bind(articleId).run();
+    } catch { /* 旧库尚未升级时仍保留原有累计点击统计。 */ }
     return json({ ok:true, article_id:articleId });
   } catch {
     return json({ error:"analytics_unavailable" }, 503);

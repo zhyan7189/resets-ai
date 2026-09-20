@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { onRequestGet as listAdmin, onRequestPost as create, onRequestPut as update } from "../functions/api/admin/articles.js";
+import { onRequestDelete as discard, onRequestGet as listAdmin, onRequestPost as create, onRequestPut as update } from "../functions/api/admin/articles.js";
 import { onRequestGet as authenticateAdmin } from "../functions/api/admin/auth.js";
 import { onRequestGet as getAdminItem } from "../functions/api/admin/item.js";
 import { onRequestGet as listPublic } from "../functions/api/articles/index.js";
@@ -12,6 +12,9 @@ import { onRequestGet as popular } from "../functions/api/articles/popular.js";
 import { extractMetadata } from "../functions/api/admin/import.js";
 import { extractArticleBody, onRequestPost as importLink } from "../functions/api/admin/import.js";
 import { onRequestGet as overview } from "../functions/api/admin/overview.js";
+import { onRequestPost as reviewContent } from "../functions/api/admin/review.js";
+import { onRequestPost as trackVisit } from "../functions/api/analytics/visit.js";
+import { onRequestPost as trackImpression } from "../functions/api/analytics/impression.js";
 import { onRequestGet as versions } from "../functions/api/admin/versions.js";
 import { onRequestPost as uploadImage } from "../functions/api/admin/upload.js";
 import { onRequestGet as getMedia } from "../functions/api/media/[id].js";
@@ -40,6 +43,7 @@ function environment() {
         },
         first:async () => statement.get() || null,
         all:async () => ({ results:statement.all() }),
+        run:async () => ({ meta:statement.run() }),
       };
     } },
   };
@@ -97,6 +101,47 @@ test("后台鉴权、草稿隔离、发布、下架和热度筛选", async () =>
   const metrics = await (await overview({ request:request("/api/admin/overview", "GET", undefined, true), env })).json();
   assert.equal(metrics.counts.draft, 1);
   assert.equal(metrics.total_reads, 1);
+});
+
+test("内容管理分页、审核拒绝与通过、可恢复删除", async () => {
+  const env = environment();
+  const first = await create({ request:request("/api/admin/articles", "POST", { ...sample, status:"review" }, true), env });
+  const { id } = await first.json();
+  const second = await create({ request:request("/api/admin/articles", "POST", { ...sample, source_url:"https://example.org/story-2", title:"另一个标题", status:"review" }, true), env });
+  assert.equal(second.status, 201);
+  const page = await listAdmin({ request:request("/api/admin/articles?page=1&page_size=10&status=review&q=另一个", "GET", undefined, true), env });
+  const listed = await page.json();
+  assert.equal(listed.total, 1);
+  assert.equal(listed.articles[0].title, "另一个标题");
+  const denied = await reviewContent({ request:request("/api/admin/review", "POST", { id, revision:1, action:"reject", note:"来源需核对" }, true), env });
+  assert.equal(denied.status, 200);
+  assert.equal((await denied.json()).status, "rejected");
+  const resubmitted = await update({ request:request("/api/admin/articles", "PUT", { ...sample, id, revision:2, status:"review" }, true), env });
+  assert.equal(resubmitted.status, 200);
+  const approved = await reviewContent({ request:request("/api/admin/review", "POST", { id, revision:3, action:"approve" }, true), env });
+  assert.equal(approved.status, 200);
+  assert.equal((await approved.json()).status, "published");
+  const removed = await discard({ request:request("/api/admin/articles", "DELETE", { id, revision:4 }, true), env });
+  assert.equal((await removed.json()).status, "discarded");
+  assert.equal((await (await listPublic({ env })).json()).articles.length, 0);
+  const restored = await update({ request:request("/api/admin/articles", "PUT", { ...sample, id, revision:5, status:"review" }, true), env });
+  assert.equal(restored.status, 200);
+  const events = await env.DB.prepare("SELECT action,note FROM review_events WHERE article_id=? ORDER BY revision").bind(id).all();
+  assert.deepEqual(events.results.map((item) => item.action), ["reject","approve"]);
+});
+
+test("驾驶舱统计从访问和卡片曝光启用后计数", async () => {
+  const env = environment();
+  const created = await create({ request:request("/api/admin/articles", "POST", { ...sample, status:"published" }, true), env });
+  const { id } = await created.json();
+  assert.equal((await trackVisit({ env })).status, 200);
+  assert.equal((await trackImpression({ request:request("/api/analytics/impression", "POST", { article_ids:[id,id] }), env })).status, 200);
+  await click({ request:request("/api/articles/click", "POST", { article_id:id }), env });
+  const data = await (await overview({ request:request("/api/admin/overview", "GET", undefined, true), env })).json();
+  assert.equal(data.analytics.ready, true);
+  assert.equal(data.analytics.total_visits, 1);
+  assert.equal(data.analytics.heat[0].clicks, 1);
+  assert.equal(data.analytics.heat[0].impressions, 1);
 });
 
 test("发布前校验署名、授权正文与嵌入地址", () => {
