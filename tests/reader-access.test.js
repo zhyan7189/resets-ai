@@ -60,6 +60,33 @@ test("开启游客门禁后正文要求登录；邮箱注册会自动建立会�
   assert.equal((await item({ request:req("/api/articles/item?id=archive-1", { headers:{ cookie } }), env })).status, 403);
 });
 
+test("注册页档案接口缓存半小时并忽略查询参数", async () => {
+  const { env } = fixture();
+  let queries = 0;
+  const prepare = env.DB.prepare;
+  env.DB.prepare = (sql) => { queries += 1; return prepare(sql); };
+  const entries = new Map();
+  const originalCaches = globalThis.caches;
+  globalThis.caches = { default:{
+    match:async (request) => entries.get(request.url)?.clone(),
+    put:async (request, response) => entries.set(request.url, response.clone()),
+  } };
+  try {
+    const writes = [];
+    const first = await teasers({ env, request:req("/api/articles/teasers?first=1"), waitUntil:(write) => writes.push(write) });
+    await Promise.all(writes);
+    assert.equal(first.headers.get("cache-control"), "public, max-age=300, s-maxage=1800");
+    assert.equal((await first.json()).articles.length, 6);
+    const second = await teasers({ env, request:req("/api/articles/teasers?second=1") });
+    assert.equal((await second.json()).articles.length, 6);
+    assert.equal(queries, 1);
+    assert.equal(entries.size, 1);
+  } finally {
+    if (originalCaches === undefined) delete globalThis.caches;
+    else globalThis.caches = originalCaches;
+  }
+});
+
 test("游客访问开关仅管理员可修改，关闭后全部公开，重新开启后要求登录", async () => {
   const { env } = fixture();
   const admin = { authorization:"Bearer test-admin", "content-type":"application/json" };

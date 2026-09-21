@@ -60,20 +60,30 @@ form.addEventListener("submit", async (event) => {
 async function loadArchives() {
   const mosaic = document.getElementById("archive-mosaic");
   try {
-    const response = await fetch("/api/articles/teasers", { headers:{ accept:"application/json" }, cache:"no-store" });
+    const response = await fetch("/api/articles/teasers", { headers:{ accept:"application/json" } });
     if (!response.ok) throw new Error();
     const { articles = [] } = await response.json();
+    if (!articles.length) return;
+    const nextArticles = articles.slice(0, 6);
+    const currentIds = [...mosaic.querySelectorAll("[data-article-id]")].map((card) => card.dataset.articleId);
+    if (currentIds.join(",") === nextArticles.map((article) => article.id).join(",")) return;
     mosaic.replaceChildren();
-    for (const article of articles.slice(0, 6)) {
+    for (const [index, article] of nextArticles.entries()) {
       const card = document.createElement("a");
       card.className = "archive-piece";
+      card.dataset.articleId = article.id;
       card.href = `/register.html?mode=login&next=${encodeURIComponent(`/article.html?id=${article.id}`)}`;
-      if (article.cover_url) { const image = document.createElement("img"); image.src = article.cover_url; image.alt = ""; image.loading = "lazy"; card.append(image); }
+      if (article.cover_url) { const image = document.createElement("img"); image.src = article.cover_url; image.alt = ""; image.loading = index < 2 ? "eager" : "lazy"; if (index === 0) image.fetchPriority = "high"; card.append(image); }
       const meta = document.createElement("small"); meta.textContent = article.category === "review" ? "AI 测评" : article.category === "opportunity" ? "机会资讯" : "实操教程";
       const title = document.createElement("strong"); title.textContent = article.card_title || article.title;
       card.append(meta, title); mosaic.append(card);
     }
-    if (!mosaic.children.length) mosaic.innerHTML = '<div class="archive-empty">新档案正在整理中</div>';
-  } catch { mosaic.innerHTML = '<div class="archive-empty">档案暂时无法载入</div>'; }
+  } catch {}
 }
-loadArchives();
+
+function scheduleArchiveRefresh() {
+  if ("requestIdleCallback" in window) requestIdleCallback(() => loadArchives(), { timeout:1500 });
+  else setTimeout(() => loadArchives(), 0);
+}
+if (document.readyState === "complete") scheduleArchiveRefresh();
+else addEventListener("load", scheduleArchiveRefresh, { once:true });
