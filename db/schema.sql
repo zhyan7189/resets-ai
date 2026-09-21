@@ -12,6 +12,16 @@ CREATE TABLE IF NOT EXISTS site_settings (
 CREATE INDEX IF NOT EXISTS article_clicks_rank
   ON article_clicks (clicks DESC, updated_at DESC);
 
+CREATE TABLE IF NOT EXISTS article_clicks_hourly (
+  article_id TEXT NOT NULL,
+  hour TEXT NOT NULL,
+  clicks INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (article_id, hour)
+);
+
+CREATE INDEX IF NOT EXISTS article_clicks_hourly_recent
+  ON article_clicks_hourly (hour DESC, article_id);
+
 CREATE TABLE IF NOT EXISTS articles (
   id TEXT PRIMARY KEY,
   source_url TEXT NOT NULL UNIQUE,
@@ -19,7 +29,7 @@ CREATE TABLE IF NOT EXISTS articles (
   author TEXT NOT NULL DEFAULT '',
   published_at TEXT NOT NULL DEFAULT '',
   format TEXT NOT NULL DEFAULT 'article',
-  category TEXT NOT NULL DEFAULT 'opportunity',
+  category TEXT NOT NULL DEFAULT 'tutorial',
   rights TEXT NOT NULL DEFAULT 'summary',
   status TEXT NOT NULL DEFAULT 'draft',
   title TEXT NOT NULL DEFAULT '',

@@ -12,7 +12,9 @@ test("文章点击统计可写入并按点击量返回榜首", async () => {
           bind(articleId) {
             return {
               async run() {
-                counts.set(articleId, (counts.get(articleId) || 0) + 1);
+                if (/INSERT INTO article_clicks\s*\(/.test(sql)) {
+                  counts.set(articleId, (counts.get(articleId) || 0) + 1);
+                }
               },
             };
           },

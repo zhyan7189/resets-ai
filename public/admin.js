@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const form = $("article-form");
-const categoryNames = { opportunity:"机会资讯", tutorial:"实操教程", tools:"工具观察", case:"创业案例", pitfall:"避坑经验" };
+const categoryNames = { tutorial:"实操教程", review:"AI测评", opportunity:"机会资讯" };
 const statusNames = { draft:"草稿", needs_help:"需协助", review:"待审核", rejected:"未通过", published:"已发布", archived:"已下架", discarded:"已废弃" };
 const sessionKey = "resets-ai-admin-token";
 let token = "";
@@ -207,7 +207,7 @@ function preview() {
   const cover = $("preview-cover");
   cover.hidden = !mediaUrl(data.cover_url);
   if (!cover.hidden) cover.src = data.cover_url;
-  $("preview-kicker").textContent = `${categoryNames[data.category] || "机会资讯"} · ${data.source_name || "来源待填"}`;
+  $("preview-kicker").textContent = `${categoryNames[data.category] || "实操教程"} · ${data.source_name || "来源待填"}`;
   $("preview-title").textContent = data.card_title || data.title || "卡片标题待填";
   $("preview-summary").textContent = data.summary || "摘要待填";
   $("preview-source").textContent = [data.author, data.published_at].filter(Boolean).join(" · ");
@@ -619,7 +619,7 @@ async function openReviewPreview(id, canReview) {
   try {
     const { article } = await api(`/api/admin/item?id=${encodeURIComponent(id)}`);
     reviewing = canReview ? article : null;
-    $("review-kicker").textContent = `${categoryNames[article.category] || "AI 资讯"} · ${article.source_name || "来源待补"}`;
+    $("review-kicker").textContent = `${categoryNames[article.category] || "实操教程"} · ${article.source_name || "来源待补"}`;
     $("review-card-title").textContent = article.card_title || article.title;
     $("review-summary").textContent = article.summary;
     $("review-card-meta").textContent = [article.author, article.published_at].filter(Boolean).join(" · ");
@@ -697,7 +697,7 @@ $("new-content").addEventListener("click", () => { for (const option of document
 for (const option of document.querySelectorAll('input[name="new-format"]')) option.addEventListener("change", () => { $("new-choices").hidden = false; $("import-panel").hidden = true; });
 $("new-close").addEventListener("click", () => $("new-dialog").close());
 $("choose-link").addEventListener("click", () => { $("import-panel").hidden = false; $("new-choices").hidden = true; $("import-url").focus(); });
-$("manual").addEventListener("click", () => { const format = newFormat(); $("new-dialog").close(); fill({ format, category:"opportunity", rights:format === "video" ? "embed" : "licensed", status:"draft" }); status("save-status", `已打开空白${format === "video" ? "视频" : "文章"}表单。填写后保存并提交审核。`); });
+$("manual").addEventListener("click", () => { const format = newFormat(); $("new-dialog").close(); fill({ format, category:"tutorial", rights:format === "video" ? "embed" : "licensed", status:"draft" }); status("save-status", `已打开空白${format === "video" ? "视频" : "文章"}表单。填写后保存并提交审核。`); });
 $("close-editor").addEventListener("click", () => $("editor").close());
 $("editor-cancel").addEventListener("click", () => { if (canCloseDialog($("editor"))) $("editor").close(); });
 

@@ -53,6 +53,17 @@ npx wrangler d1 execute resets-ai --remote --file=db/migrations/004-guest-mode.s
 
 部署后检查驾驶舱开关和 `/api/articles` 的 `limited` 字段。回收站“粉碎”会永久删除档案、版本、统计与导入审核记录，并尝试清理仅被该档案引用的 R2 图片；执行前须在界面输入档案编号。R2 清理失败时页面会提示管理员跟进。
 
+### 档案类型与热度排序升级
+
+已有生产库先导出 D1 备份，再执行 [005-archive-categories-and-heat.sql](db/migrations/005-archive-categories-and-heat.sql)，最后部署对应代码。迁移会把执行当时的全部档案类型统一为“实操教程”，并创建按小时累计点击量的 `article_clicks_hourly` 表。迁移带一次性标记，重复执行不会覆盖后来设置的“AI测评”或“机会资讯”。
+
+```sh
+npx wrangler d1 export resets-ai --remote --output /private/tmp/resets-ai-before-005.sql
+npx wrangler d1 execute resets-ai --remote --file=db/migrations/005-archive-categories-and-heat.sql
+```
+
+部署后检查公开档案只包含 `tutorial`、`review`、`opportunity` 三种类型，并验证“24小时热度”“一周热度”“历史热度”“最新档案”的排序。24 小时统计从迁移及新版代码上线后开始按小时累计，无法从旧的按日统计中还原上线前的小时分布。
+
 后台 API 会校验 `ADMIN_TOKEN`；建议再用 Cloudflare Access 对 `/admin` 和 `/api/admin/*` 设置仅管理员可访问。公开页面只读取状态为 `published` 的记录。授权全文转载由管理员确认；导入链接会尝试提取可访问的正文和图片，无法完整取得时进入“需协助”，不会擅自补写或发布。R2 不可用时外部图片需要人工核对。
 
 未绑定 D1 时，本地预览会使用浏览器本地点击记录，不影响页面查看；后台会明确提示数据库未配置。

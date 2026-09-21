@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const categories = { opportunity:"机会资讯", tutorial:"实操教程", tools:"工具观察", case:"创业案例", pitfall:"避坑经验" };
+const categories = { tutorial:"实操教程", review:"AI测评", opportunity:"机会资讯" };
 fetch("/api/analytics/visit", { method:"POST", keepalive:true }).catch(() => {});
 
 function safeUrl(value) {
@@ -44,7 +44,7 @@ async function main() {
   if (!response.ok) throw new Error(response.status === 403 ? "请先注册或登录读者账号，再阅读这篇档案" : response.status === 404 ? "这篇文章已下架或尚未发布" : "暂时无法读取文章");
   const { article } = await response.json();
   document.title = `${article.title} · Resets AI`;
-  $("category").textContent = `${categories[article.category] || "AI 赚钱情报"} · ${article.format === "video" ? "视频" : "文章"}`;
+  $("category").textContent = `${categories[article.category] || "实操教程"} · ${article.format === "video" ? "视频" : "文章"}`;
   $("title").textContent = article.title;
   $("meta").textContent = [article.source_name, article.author, article.published_at?.slice(0, 10)].filter(Boolean).join(" · ");
   $("summary").textContent = article.summary;

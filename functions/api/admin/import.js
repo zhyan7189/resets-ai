@@ -226,7 +226,7 @@ async function enrich(metadata, env) {
       method:"POST",
       headers:{ "authorization":`Bearer ${env.AI_API_KEY}`, "content-type":"application/json" },
       body:JSON.stringify({ model:env.AI_MODEL, temperature:0.2, response_format:{ type:"json_object" }, messages:[
-        { role:"system", content:"你是中文 AI 创业资讯编辑。只依据给定元数据生成中文卡片草稿。返回 JSON，包含 card_title、summary、category（opportunity/tutorial/tools/case/pitfall）。不要编造收入、成本、作者、发布日期、正文或事实。没有足够信息时保持保守。" },
+        { role:"system", content:"你是中文 AI 创业资讯编辑。只依据给定元数据生成中文卡片草稿。返回 JSON，包含 card_title、summary、category（tutorial/review/opportunity）。不要编造收入、成本、作者、发布日期、正文或事实。没有足够信息时保持保守。" },
         { role:"user", content:JSON.stringify({ title:metadata.title, description:metadata.summary, source:metadata.source_name }) },
       ] }),
       signal:AbortSignal.timeout(12000),
@@ -237,7 +237,7 @@ async function enrich(metadata, env) {
     return {
       card_title:String(draft.card_title || "").slice(0, 180),
       summary:String(draft.summary || "").slice(0, 500),
-      category:["opportunity", "tutorial", "tools", "case", "pitfall"].includes(draft.category) ? draft.category : "opportunity",
+      category:["tutorial", "review", "opportunity"].includes(draft.category) ? draft.category : "tutorial",
     };
   } catch { return null; }
 }
@@ -357,7 +357,7 @@ export async function onRequestPost({ request, env }) {
   if (!metadata.summary && !ai?.summary) issues.push("缺少首页卡片摘要");
   const rights = metadata.format === "video" && videoPlayback(metadata.video_url || url) ? "embed" : "licensed";
   const input = { ...metadata, ...ai, video_url:metadata.video_url || (rights === "embed" ? url : ""),
-    card_title:ai?.card_title || metadata.title, category:ai?.category || "opportunity",
+    card_title:ai?.card_title || metadata.title, category:ai?.category || "tutorial",
     rights, status:issues.length ? "needs_help" : "review", extraction_state:extraction,
     extraction_note:issues.join("\n"), original_body:sourceBody, rights_confirmed:false };
   const { article, error } = cleanArticle(input);

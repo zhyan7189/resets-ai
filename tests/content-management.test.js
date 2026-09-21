@@ -614,3 +614,29 @@ test("旧文章迁移后仍保留公开状态和首个历史版本", () => {
   const version = sqlite.prepare("SELECT snapshot FROM article_versions WHERE article_id='old'").get();
   assert.equal(JSON.parse(version.snapshot).body, "旧正文");
 });
+
+test("分类迁移把现有档案统一为实操教程，重复执行不覆盖后续分类", () => {
+  const sqlite = new DatabaseSync(":memory:");
+  sqlite.exec(readFileSync(new URL("../db/schema.sql", import.meta.url), "utf8"));
+  sqlite.exec(`INSERT INTO articles (id,source_url,category) VALUES
+    ('old-tools','https://example.org/tools','tools'),
+    ('old-case','https://example.org/case','case');`);
+  const migration = readFileSync(new URL("../db/migrations/005-archive-categories-and-heat.sql", import.meta.url), "utf8");
+  sqlite.exec(migration);
+  assert.deepEqual(sqlite.prepare("SELECT category FROM articles ORDER BY id").all().map((row) => row.category), ["tutorial", "tutorial"]);
+  sqlite.exec("UPDATE articles SET category='review' WHERE id='old-case'");
+  sqlite.exec(migration);
+  assert.equal(sqlite.prepare("SELECT category FROM articles WHERE id='old-case'").get().category, "review");
+});
+
+test("公开档案接口返回 24 小时、一周和历史点击量", async () => {
+  const env = environment();
+  const created = await create({ request:request("/api/admin/articles", "POST", { ...sample, status:"published" }, true), env });
+  const { id } = await created.json();
+  await click({ request:request("/api/articles/click", "POST", { article_id:id }), env });
+  const article = (await (await listPublic({ request:request("/api/articles"), env })).json()).articles[0];
+  assert.equal(article.clicks_24h, 1);
+  assert.equal(article.clicks_7d, 1);
+  assert.equal(article.clicks_total, 1);
+  assert.match(article.published_sort_at, /^\d{4}-\d{2}-\d{2}T/);
+});

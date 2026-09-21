@@ -1,8 +1,8 @@
 import { historyCalendar, normalizeEvents, readableEventText, relativeLabel, tooltipDetails } from "./model.js";
 
 const articles = [];
-const categoryNames = { opportunity:"机会资讯", tutorial:"实操教程", tools:"工具观察", case:"创业案例", pitfall:"避坑经验" };
-let activeArticleFilter = "all";
+const categoryNames = { tutorial:"实操教程", review:"AI测评", opportunity:"机会资讯" };
+let activeArticleSort = "all";
 let articleSearch = "";
 let publishedLoaded = false;
 let readerLimited = true;
@@ -96,7 +96,7 @@ async function loadPopularArticle() {
     const data = await response.json();
     const row = data.article;
     renderPopularArticle(row ? {
-      id:row.id, category:row.category, label:`${categoryNames[row.category] || "机会资讯"} · ${row.source_name}${row.format === "video" ? " · 视频" : ""}`,
+      id:row.id, category:row.category, label:`${categoryNames[row.category] || "实操教程"} · ${row.source_name}${row.format === "video" ? " · 视频" : ""}`,
       title:row.title, cardTitle:row.card_title, summary:row.summary,
       source:`${row.author} · ${row.published_at ? row.published_at.slice(0, 10) : "日期未注明"}`,
       url:`/article.html?id=${encodeURIComponent(row.id)}`, coverUrl:row.cover_url,
@@ -381,8 +381,8 @@ historyScroll.addEventListener("scroll", () => {
   hideCellTooltip();
 }, { passive:true });
 
-function renderArticles(filter = "all") {
-  activeArticleFilter = filter;
+function renderArticles(sort = "all") {
+  activeArticleSort = sort;
   const grid = $("article-grid");
   impressionObserver?.disconnect();
   if ("IntersectionObserver" in window) impressionObserver = new IntersectionObserver((items) => {
@@ -396,8 +396,11 @@ function renderArticles(filter = "all") {
     if (ids.length) fetch("/api/analytics/impression", { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ article_ids:ids }), keepalive:true }).catch(() => {});
   }, { threshold:.35 });
   grid.replaceChildren();
-  const shown = articles.filter((item) => (filter === "all" || item.category === filter) &&
-    (!articleSearch || [item.title, item.summary, item.source].join(" ").toLocaleLowerCase().includes(articleSearch)));
+  const shown = articles.filter((item) => !articleSearch ||
+    [item.title, item.summary, item.source].join(" ").toLocaleLowerCase().includes(articleSearch));
+  const metric = sort === "hot24" ? "clicks24h" : sort === "hot7" ? "clicks7d" : sort === "history" ? "clicksTotal" : "";
+  if (metric) shown.sort((left, right) => right[metric] - left[metric] || right.publishedAt - left.publishedAt);
+  if (sort === "latest") shown.sort((left, right) => right.publishedAt - left.publishedAt);
   for (const article of shown) {
     const card = document.createElement("button");
     const registrationRequired = article.articleType === "database" && readerLimited && article.id !== freeArticleId;
@@ -442,7 +445,7 @@ function renderArticles(filter = "all") {
   if (!shown.length) {
     const empty = document.createElement("p");
     empty.className = "article-empty";
-    empty.textContent = !publishedLoaded && !articles.length ? "正在读取档案…" : filter === "all" && !articleSearch && !articles.length ? "当前页面没有任何档案。" : "没有找到符合条件的档案。";
+    empty.textContent = !publishedLoaded && !articles.length ? "正在读取档案…" : !articleSearch && !articles.length ? "当前页面没有任何档案。" : "没有找到符合条件的档案。";
     grid.append(empty);
   }
 }
@@ -459,14 +462,16 @@ async function loadPublishedArticles() {
     for (const row of data.articles || []) {
       if (articles.some((item) => item.id === row.id || item.url === row.source_url)) continue;
       articles.push({
-        id:row.id, category:row.category, label:`${categoryNames[row.category] || "机会资讯"} · ${row.source_name}${row.format === "video" ? " · 视频" : ""}`,
+        id:row.id, category:row.category, label:`${categoryNames[row.category] || "实操教程"} · ${row.source_name}${row.format === "video" ? " · 视频" : ""}`,
         title:row.title, cardTitle:row.card_title, summary:row.summary,
         source:`${row.author} · ${row.published_at ? row.published_at.slice(0, 10) : "日期未注明"}`,
         url:`/article.html?id=${encodeURIComponent(row.id)}`, coverUrl:row.cover_url,
         articleType:"database", format:row.format, style:row.format === "video" ? "rose" : "",
+        clicks24h:Number(row.clicks_24h || 0), clicks7d:Number(row.clicks_7d || 0), clicksTotal:Number(row.clicks_total || 0),
+        publishedAt:Date.parse(row.published_sort_at || row.updated_at || "") || 0,
       });
     }
-    renderArticles(activeArticleFilter);
+    renderArticles(activeArticleSort);
     loadPopularArticle();
     $("reader-access").innerHTML = data.limited
       ? '全部档案均可浏览；最新 1 篇可完整阅读。<a href="/register.html">注册后解锁全站 ↗</a>'
@@ -678,12 +683,12 @@ async function toggleReminder() {
 document.querySelectorAll(".tab").forEach((button) => {
   button.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((tab) => tab.setAttribute("aria-pressed", String(tab === button)));
-    renderArticles(button.dataset.filter);
+    renderArticles(button.dataset.sort);
   });
 });
 $("article-search")?.addEventListener("input", (event) => {
   articleSearch = event.target.value.trim().toLocaleLowerCase();
-  renderArticles(activeArticleFilter);
+  renderArticles(activeArticleSort);
 });
 $("reader-close")?.addEventListener("click", closeArticleReader);
 $("article-reader")?.addEventListener("click", (event) => {
