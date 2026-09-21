@@ -29,6 +29,7 @@ let operationsTotal = 0;
 let deleting = null;
 let shredding = null;
 let dashboardRanks = { heat:[], ctr:[] };
+let audienceAnalytics = { visitors:[], registrations:[] };
 
 document.body.append($("editor"));
 
@@ -351,6 +352,13 @@ async function refreshOverview() {
   $("metric-help").textContent = overview.counts.needs_help || 0;
   $("metric-reads").textContent = Number(overview.total_reads || 0).toLocaleString("zh-CN");
   $("metric-visits").textContent = overview.analytics?.ready ? Number(overview.analytics.total_visits).toLocaleString("zh-CN") : "待接入";
+  for (const period of ["today", "week", "month"]) {
+    $("visitor-" + period).textContent = overview.analytics?.ready ? Number(overview.analytics.visitor_summary?.[period] || 0).toLocaleString("zh-CN") : "—";
+    $("registration-" + period).textContent = overview.analytics?.ready ? Number(overview.analytics.registration_summary?.[period] || 0).toLocaleString("zh-CN") : "—";
+  }
+  audienceAnalytics = { visitors:overview.analytics?.visitors || [], registrations:overview.analytics?.registrations || [] };
+  drawGrowthChart("visitors-chart", audienceAnalytics.visitors, "new_visitors", $("visitor-period").value, "visitor", overview.analytics?.ready);
+  drawGrowthChart("registrations-chart", audienceAnalytics.registrations, "new_users", $("registration-period").value, "registration", overview.analytics?.ready);
   drawChart("visits-chart", overview.analytics?.visits || [], "pageviews", overview.analytics?.ready);
   drawChart("reads-chart", overview.analytics?.reads || [], "clicks", overview.analytics?.ready);
   dashboardRanks = { heat:overview.analytics?.heat || [], ctr:overview.analytics?.ctr || [] };
@@ -396,6 +404,46 @@ function drawChart(id, points, key, ready) {
     container.append(bar);
   }
 }
+
+function periodStart(date, period) {
+  const value = new Date(`${date.toISOString().slice(0, 10)}T00:00:00Z`);
+  if (period === "week") value.setUTCDate(value.getUTCDate() - (value.getUTCDay() + 6) % 7);
+  if (period === "month") value.setUTCDate(1);
+  return value.toISOString().slice(0, 10);
+}
+
+function drawGrowthChart(id, points, key, period, tone, ready) {
+  const container = $(id); container.replaceChildren();
+  if (!ready) { container.textContent = "统计表尚未启用，请先运行数据库迁移。"; return; }
+  const grouped = new Map();
+  for (const point of points) {
+    const bucket = periodStart(new Date(`${point.day}T00:00:00Z`), period);
+    grouped.set(bucket, (grouped.get(bucket) || 0) + Number(point[key] || 0));
+  }
+  const count = period === "day" ? 30 : 12;
+  const cursor = new Date();
+  const buckets = [];
+  for (let offset = count - 1; offset >= 0; offset--) {
+    const date = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate()));
+    if (period === "day") date.setUTCDate(date.getUTCDate() - offset);
+    if (period === "week") date.setUTCDate(date.getUTCDate() - offset * 7);
+    if (period === "month") date.setUTCMonth(date.getUTCMonth() - offset, 1);
+    const bucket = periodStart(date, period);
+    if (!buckets.includes(bucket)) buckets.push(bucket);
+  }
+  const values = buckets.map((day) => ({ day, value:grouped.get(day) || 0 }));
+  const max = Math.max(1, ...values.map((item) => item.value));
+  for (const item of values) {
+    const bar = document.createElement("button"); bar.type = "button"; bar.className = `chart-bar ${tone}`;
+    bar.style.height = `${Math.max(2, item.value / max * 100)}%`;
+    const suffix = period === "day" ? "" : period === "week" ? " 起一周" : " 所在月";
+    bar.dataset.label = `${item.day}${suffix} · ${item.value} 人`;
+    bar.setAttribute("aria-label", bar.dataset.label); container.append(bar);
+  }
+}
+
+$("visitor-period").addEventListener("change", (event) => drawGrowthChart("visitors-chart", audienceAnalytics.visitors, "new_visitors", event.target.value, "visitor", true));
+$("registration-period").addEventListener("change", (event) => drawGrowthChart("registrations-chart", audienceAnalytics.registrations, "new_users", event.target.value, "registration", true));
 
 function drawRanks(id, items, valueText) {
   const container = $(id); container.replaceChildren();
@@ -680,7 +728,7 @@ async function refreshGuestMode() {
   const data = await api("/api/admin/guest-mode");
   $("guest-mode").checked = Boolean(data.enabled);
   $("guest-mode").disabled = false;
-  status("guest-mode-status", data.enabled ? "当前已开启：游客仅能阅读最新一篇档案。" : "当前已关闭：游客可阅读全部档案。");
+  status("guest-mode-status", data.enabled ? "当前已开启：未登录访客会先进入注册页。" : "当前已关闭：游客可直接访问全部档案。");
 }
 $("guest-mode").addEventListener("change", async (event) => {
   const input = event.target;
@@ -688,7 +736,7 @@ $("guest-mode").addEventListener("change", async (event) => {
   try {
     const data = await api("/api/admin/guest-mode", { method:"PUT", body:JSON.stringify({ enabled:input.checked }) });
     input.checked = data.enabled;
-    status("guest-mode-status", data.enabled ? "已开启：游客仅能阅读最新一篇档案。" : "已关闭：游客可阅读全部档案。");
+    status("guest-mode-status", data.enabled ? "已开启：未登录访客会先进入注册页。" : "已关闭：游客可直接访问全部档案。");
   } catch (error) { input.checked = !input.checked; status("guest-mode-status", error.message, true); }
   finally { input.disabled = false; }
 });

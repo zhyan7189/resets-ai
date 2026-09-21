@@ -1,0 +1,13 @@
+{
+  "name": "Resets AI",
+  "short_name": "Resets AI",
+  "description": "发现有原文来源、可以实践的 AI 赚钱情报。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eaf2ff",
+  "theme_color": "#192753",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

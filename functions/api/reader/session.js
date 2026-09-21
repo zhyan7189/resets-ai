@@ -6,6 +6,6 @@ export async function onRequestGet({ request, env }) {
   if (missing) return missing;
   try {
     const user = await reader(request, env);
-    return json({ logged_in:!!user, username:user?.username || null });
+    return json({ logged_in:!!user, email:user?.email || null });
   } catch { return json({ error:"session_unavailable" }, 503); }
 }

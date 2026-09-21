@@ -4,6 +4,11 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="referrer" content="same-origin" />
   <meta name="robots" content="noindex,nofollow" />
+  <meta name="theme-color" content="#192753" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
   <title>档案控制台 · Resets AI</title>
   <style>
     @font-face { font-family:GenSen; src:url("./fonts/GenSenRounded-Heavy-UI.woff2"); font-weight:800; font-display:swap; }
@@ -38,6 +43,9 @@
     .panel { padding:22px; margin-top:20px; scroll-margin-top:20px; }
     .panel h2 { font-size:19px; }
     .metrics { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-top:24px; }
+    .audience-metrics { grid-template-columns:repeat(6,minmax(0,1fr)); margin-top:14px; }
+    .audience-metrics .metric { min-height:82px; }
+    .audience-metrics .metric strong { font-size:25px; }
     .metric { min-height:94px; padding:16px 18px; }
     .metric span { display:block; color:var(--muted); font-size:12px; font-weight:800; }
     .metric strong { display:block; margin-top:7px; font:800 29px/1 GenSen,sans-serif; }
@@ -120,6 +128,8 @@
     .chart-bar::after { content:attr(data-label); position:absolute; left:50%; bottom:calc(100% + 9px); min-width:max-content; padding:5px 8px; border-radius:6px; background:var(--ink); color:white; font-size:10px; font-weight:800; opacity:0; pointer-events:none; transform:translate(-50%,5px); transition:opacity .14s ease,transform .14s ease; }
     .chart-bar:hover::after,.chart-bar:focus-visible::after { opacity:1; transform:translate(-50%,0); }
     .chart-bar.read { background:#19b9a7; }
+    .chart-bar.visitor { background:#ff8c5c; }
+    .chart-bar.registration { background:#7766e8; }
     .chart-legend,.pagination,.choice-row { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:14px; }
     .pagination-controls { display:flex; align-items:center; justify-content:flex-end; gap:10px; flex-wrap:wrap; }
     .page-size-control { display:inline-flex; align-items:center; gap:7px; padding:5px 6px 5px 12px; border:1.5px solid var(--line); border-radius:999px; background:#f1f5ff; color:var(--muted); font-size:11px; font-weight:800; white-space:nowrap; }
@@ -212,7 +222,7 @@
     .archive-type legend { font-weight:800; font-size:12px; }
     .archive-type label { padding:10px; border:1.5px solid var(--ink); border-radius:9px; background:#f2edff; cursor:pointer; }
     @media (prefers-reduced-motion:reduce) { .chart-bar,.chart-bar::after { transition:none; transform:none!important; } }
-    @media(max-width:1150px) { .metrics { grid-template-columns:repeat(3,1fr); } }
+    @media(max-width:1150px) { .metrics,.audience-metrics { grid-template-columns:repeat(3,1fr); } }
     @media(max-width:740px) { .metrics,.dashboard-grid { grid-template-columns:repeat(2,1fr); } .ad-map { grid-template-columns:1fr 1fr; } .ad-site { grid-column:1/-1; grid-row:1; min-height:170px; } .ad-rail { min-height:240px; } }
     @media(max-width:530px) { .metrics,.dashboard-grid,.health-list { grid-template-columns:1fr; } .content-item,.review-card { flex-direction:column; } }
   </style>
@@ -236,8 +246,11 @@
       <p class="preview-banner" id="preview-banner" hidden></p>
       <section class="view" id="dashboard">
         <div class="metrics" aria-label="驾驶舱关键指标"><div class="metric"><span>已发布</span><strong id="metric-published">—</strong></div><div class="metric"><span>待审核</span><strong id="metric-review">—</strong></div><div class="metric"><span>需协助</span><strong id="metric-help">—</strong></div><div class="metric"><span>累计阅读</span><strong id="metric-reads">—</strong></div><div class="metric"><span>累计访问 · PV</span><strong id="metric-visits">—</strong></div></div>
-        <section class="panel" aria-label="游客阅读权限"><div class="panel-heading"><h2>游客模式</h2><small>关闭限制后游客可阅读全部档案</small></div><label class="guest-switch"><div><strong>限制未注册访客阅读</strong><small id="guest-mode-description">开启时只能完整阅读最新一篇档案；关闭时全部档案开放。</small></div><input id="guest-mode" type="checkbox" aria-label="游客阅读限制开关" disabled /></label><p class="notice" id="guest-mode-status" role="status"></p></section>
+        <div class="metrics audience-metrics" aria-label="新增访客和注册用户指标"><div class="metric"><span>今日新增访客</span><strong id="visitor-today">—</strong></div><div class="metric"><span>近 7 日新增访客</span><strong id="visitor-week">—</strong></div><div class="metric"><span>本月新增访客</span><strong id="visitor-month">—</strong></div><div class="metric"><span>今日新增注册</span><strong id="registration-today">—</strong></div><div class="metric"><span>近 7 日新增注册</span><strong id="registration-week">—</strong></div><div class="metric"><span>本月新增注册</span><strong id="registration-month">—</strong></div></div>
+        <section class="panel" aria-label="游客访问权限"><div class="panel-heading"><h2>游客访问</h2><small>控制未登录访客能否直接进入网站</small></div><label class="guest-switch"><div><strong>访问前要求注册或登录</strong><small id="guest-mode-description">开启后游客会先进入注册页；关闭后游客可直接访问全部档案。</small></div><input id="guest-mode" type="checkbox" aria-label="游客登录门禁开关" disabled /></label><p class="notice" id="guest-mode-status" role="status"></p></section>
         <div class="dashboard-grid" style="margin-top:22px">
+          <section class="panel"><div class="panel-heading"><h2>新增访客</h2><label class="rank-sort">统计粒度 <select id="visitor-period" aria-label="新增访客统计粒度"><option value="day">每日</option><option value="week">每周</option><option value="month">每月</option></select></label></div><div class="chart" id="visitors-chart"></div><p class="module-note">使用第一方匿名 Cookie 去重；清除 Cookie 或更换设备会被视为新访客。</p></section>
+          <section class="panel"><div class="panel-heading"><h2>新增注册用户</h2><label class="rank-sort">统计粒度 <select id="registration-period" aria-label="新增注册用户统计粒度"><option value="day">每日</option><option value="week">每周</option><option value="month">每月</option></select></label></div><div class="chart" id="registrations-chart"></div><p class="module-note">按账号创建时间统计；注册用户访问记录按用户和日期累计。</p></section>
           <section class="panel"><div class="panel-heading"><h2>网站访问量</h2><small>近 30 天 · 页面浏览次数</small></div><div class="chart" id="visits-chart"></div><p class="module-note">从统计功能启用后开始记录，不回填历史访问。</p></section>
           <section class="panel"><div class="panel-heading"><h2>文章阅读趋势</h2><small>近 30 天 · 卡片点击</small></div><div class="chart" id="reads-chart"></div><p class="module-note">累计阅读沿用既有点击统计；日趋势从新统计启用后开始。</p></section>
           <section class="panel"><div class="panel-heading"><h2>文章热力</h2><label class="rank-sort">近 7 天 · <select id="heat-sort" aria-label="文章热力排序"><option value="asc">点击量从小到大 ↑</option><option value="desc">点击量从大到小 ↓</option></select></label></div><div id="heat-list" class="list"></div></section>

@@ -18,9 +18,11 @@ npx wrangler pages dev public --ip 127.0.0.1 --port 8788
 
 编辑器保留原文与展示稿对照、图片/视频检查和版本记录；授权全文发布必须明确勾选授权与素材核对。全文格式支持段落、`# 标题` 和单独一段的 `![图片说明](https://图片地址)`。当前站内视频支持 YouTube 和 HTTPS MP4；X、B 站等受平台读取或播放限制的链接可能需要作者原文及媒体文件协助补全。
 
-已发布档案自动加入首页卡片。访客可阅读最近发布的 1 篇档案，注册读者账号后可阅读全部已发布档案；列表和 `/api/articles/item` 都由服务端检查会话。读者使用 `/register.html` 创建用户名和密码账号，可从注册页进入 `/reader-login.html` 登录；后台仍只有 `ADMIN_TOKEN` 一个管理员凭证，没有管理员注册。读者密码以加盐散列存入 D1，浏览器通过 HttpOnly 会话 Cookie 保持登录。草稿和下架档案不公开。当前无已发布档案或 D1 暂不可用时，首页保留四张人工整理的静态精选卡片；有档案发布后由 D1 档案列表接管。首页可按近 24 小时、一周、累计点击量或发布时间排列档案，热度榜首继续使用累计点击量。
+已发布档案自动加入首页卡片。控制台“游客访问”开关关闭时，访客可直接阅读全部已发布档案；开启后，未登录访客进入首页或档案页会先跳转到 `/register.html`。注册页左侧读取真实档案卡片，右侧使用邮箱和密码注册或登录，不发送邮箱验证码；注册成功后自动建立会话并返回原目标页面。后台仍只有 `ADMIN_TOKEN` 一个管理员凭证，没有管理员注册。读者密码以加盐散列存入 D1，浏览器通过 HttpOnly 会话 Cookie 保持登录。草稿和下架档案不公开。首页可按近 24 小时、一周、累计点击量或发布时间排列档案，热度榜首继续使用累计点击量。
 
-后台和读者账号需要 D1 绑定 `DB`，后台另需加密环境变量 `ADMIN_TOKEN`。旧数据库需先运行一次 [v2 数据迁移](db/migrations/001-content-console-v2.sql)；已有 v2 数据库升级驾驶舱时需在备份后执行 [002 迁移](db/migrations/002-dashboard-analytics.sql)，读者账号与档案编号需要执行 [003 迁移](db/migrations/003-reader-archives.sql)，游客模式开关需要执行 [004 迁移](db/migrations/004-guest-mode.sql)，三种档案类型与热度排序需要执行 [005 迁移](db/migrations/005-archive-categories-and-heat.sql)。新数据库使用 [完整表结构](db/schema.sql)。完整配置见 [DEPLOY.md](DEPLOY.md)。管理密钥不要写入仓库或公开给访客。模型接口为可选项，其调用费用不包含在 Cloudflare 免费托管额度内。
+访问统计使用第一方匿名 Cookie 的哈希识别访客，不保存明文 Cookie 或 IP；清除 Cookie 或更换设备会被视为新访客。注册用户的访问按用户和日期累计。驾驶舱提供每日、每周、每月新增访客与新增注册用户趋势，以及今日、近 7 日、本月新增指标；这些数据从 006 迁移启用后开始记录，无法从既有 PV 反推历史独立访客。
+
+后台和读者账号需要 D1 绑定 `DB`，后台另需加密环境变量 `ADMIN_TOKEN`。旧数据库需先运行一次 [v2 数据迁移](db/migrations/001-content-console-v2.sql)；已有 v2 数据库升级驾驶舱时需在备份后依次执行 [002 迁移](db/migrations/002-dashboard-analytics.sql)、[003 迁移](db/migrations/003-reader-archives.sql)、[004 迁移](db/migrations/004-guest-mode.sql)、[005 迁移](db/migrations/005-archive-categories-and-heat.sql) 和 [006 邮箱账号与访客统计迁移](db/migrations/006-email-accounts-and-visitors.sql)。006 在既有账号表上新增邮箱字段，并增加访客记录表；当前生产旧账号已按确认清空。新数据库使用 [完整表结构](db/schema.sql)。完整配置见 [DEPLOY.md](DEPLOY.md)。管理密钥不要写入仓库或公开给访客。模型接口为可选项，其调用费用不包含在 Cloudflare 免费托管额度内。
 
 `npm run check` 检查 JavaScript 语法，`npm test` 验证数据转换与接口错误处理。Cloudflare Pages 免费方案的配置步骤见 [DEPLOY.md](DEPLOY.md)。
 

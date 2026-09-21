@@ -474,8 +474,8 @@ async function loadPublishedArticles() {
     renderArticles(activeArticleSort);
     loadPopularArticle();
     $("reader-access").innerHTML = data.limited
-      ? '全部档案均可浏览；最新 1 篇可完整阅读。<a href="/register.html">注册后解锁全站 ↗</a>'
-      : '已登录读者账号，可阅读全部已发布档案。';
+      ? '当前已开启登录访问，请先<a href="/register.html">注册或登录 ↗</a>'
+      : '游客访问已开放，可阅读全部已发布档案。';
   } catch {
     renderPopularArticle(null);
     const grid = $("article-grid");
@@ -534,7 +534,7 @@ function showRegistrationGate(article) {
 }
 
 async function openArticleReader(article) {
-  if (publishedLoaded && article.articleType === "database" && readerLimited && article.id !== freeArticleId) {
+  if (publishedLoaded && article.articleType === "database" && readerLimited) {
     showRegistrationGate(article);
     return;
   }
@@ -707,7 +707,7 @@ async function refreshReaderSession() {
     if (!response.ok) return;
     $("reader-register").hidden = session.logged_in;
     $("reader-logout").hidden = !session.logged_in;
-    if (session.logged_in) $("reader-logout").title = `当前读者：${session.username}`;
+    if (session.logged_in) $("reader-logout").title = `当前读者：${session.email}`;
   } catch { /* 会话状态暂不可用时仍显示登录入口。 */ }
 }
 $("reader-logout").addEventListener("click", async () => {

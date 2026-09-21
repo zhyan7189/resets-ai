@@ -155,6 +155,7 @@ test("媒体库按档案归组，包含没有素材的档案", async () => {
 
 test("后台鉴权、草稿隔离、发布、下架和热度筛选", async () => {
   const env = environment();
+  await env.DB.prepare("INSERT INTO site_settings (key,value) VALUES ('guest_limit_enabled','0')").run();
   const denied = await listAdmin({ request:request("/api/admin/articles"), env });
   assert.equal(denied.status, 401);
   const saved = await create({ request:request("/api/admin/articles", "POST", sample, true), env });
@@ -246,12 +247,17 @@ test("驾驶舱统计从访问和卡片曝光启用后计数", async () => {
   const env = environment();
   const created = await create({ request:request("/api/admin/articles", "POST", { ...sample, status:"published" }, true), env });
   const { id } = await created.json();
-  assert.equal((await trackVisit({ env })).status, 200);
+  const firstVisit = await trackVisit({ request:request("/api/analytics/visit", "POST"), env });
+  assert.equal(firstVisit.status, 200);
+  const visitorCookie = firstVisit.headers.get("set-cookie").split(";")[0];
+  assert.equal((await trackVisit({ request:new Request("https://example.com/api/analytics/visit", { method:"POST", headers:{ cookie:visitorCookie } }), env })).status, 200);
   assert.equal((await trackImpression({ request:request("/api/analytics/impression", "POST", { article_ids:[id,id] }), env })).status, 200);
   await click({ request:request("/api/articles/click", "POST", { article_id:id }), env });
   const data = await (await overview({ request:request("/api/admin/overview", "GET", undefined, true), env })).json();
   assert.equal(data.analytics.ready, true);
-  assert.equal(data.analytics.total_visits, 1);
+  assert.equal(data.analytics.total_visits, 2);
+  assert.equal(data.analytics.visitor_summary.total, 1);
+  assert.equal(data.analytics.visitors[0].new_visitors, 1);
   assert.equal(data.analytics.heat[0].clicks, 1);
   assert.equal(data.analytics.heat[0].impressions, 1);
 });
@@ -470,7 +476,10 @@ test("X 作者头像不会被当成正文配图，已发布旧记录也会过滤
   assert.equal(stripXProfileImages(body, source), `正文内容。\n\n![配图](${photo})`);
   assert.equal(stripXProfileImages(body, "https://example.org/post"), body);
   assert.equal(cleanArticle({ ...sample, source_url:source, rights:"licensed", body }).article.body, `正文内容。\n\n![配图](${photo})`);
-  const env = { DB:{ prepare() { return { all:async () => ({ results:[{ id:"old-x-article" }] }), bind() { return { first:async () => ({ ...sample, id:"old-x-article", source_url:source, body, cover_url:"", video_url:"", status:"published" }) }; } }; } } };
+  const env = { DB:{ prepare(sql) {
+    if (sql.includes("site_settings")) return { first:async () => ({ value:"0" }) };
+    return { all:async () => ({ results:[{ id:"old-x-article" }] }), bind() { return { first:async () => ({ ...sample, id:"old-x-article", source_url:source, body, cover_url:"", video_url:"", status:"published" }) }; } };
+  } } };
   const response = await getItem({ request:request("/api/articles/item?id=old-x-article"), env });
   const { article } = await response.json();
   assert.equal(article.body, `正文内容。\n\n![配图](${photo})`);

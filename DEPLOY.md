@@ -46,6 +46,8 @@ npx wrangler d1 execute resets-ai --remote --file=db/migrations/003-reader-archi
 
 已有生产库先导出 D1 备份，再执行 [004-guest-mode.sql](db/migrations/004-guest-mode.sql)，最后部署对应代码。该迁移只新增 `site_settings` 表，并将游客限制默认为开启；再次运行不会覆盖控制台中保存的选择。关闭后游客可完整阅读全部已发布档案，重新开启后只可阅读最新一篇。
 
+新版代码中，这个开关用于控制“访问前是否要求登录”：关闭时游客可直接访问网站；开启后未登录访客进入首页或档案页会跳转到注册页。
+
 ```sh
 npx wrangler d1 export resets-ai --remote --output /private/tmp/resets-ai-before-004.sql
 npx wrangler d1 execute resets-ai --remote --file=db/migrations/004-guest-mode.sql
@@ -63,6 +65,16 @@ npx wrangler d1 execute resets-ai --remote --file=db/migrations/005-archive-cate
 ```
 
 部署后检查公开档案只包含 `tutorial`、`review`、`opportunity` 三种类型，并验证“24小时热度”“一周热度”“历史热度”“最新档案”的排序。24 小时统计从迁移及新版代码上线后开始按小时累计，无法从旧的按日统计中还原上线前的小时分布。
+
+### 邮箱账号与访客统计升级
+
+执行 [006-email-accounts-and-visitors.sql](db/migrations/006-email-accounts-and-visitors.sql) 前必须建立 D1 恢复点。该迁移会在既有 `reader_users` 表新增邮箱字段和唯一索引，并新增匿名访客、访客日记录和注册用户访问日记录表。原有用户名字段只用于兼容旧结构，新页面仅接受邮箱注册和登录。迁移不修改管理员 `ADMIN_TOKEN`，也不修改档案、媒体或文章统计。
+
+```sh
+npx wrangler d1 execute resets-ai --remote --file=db/migrations/006-email-accounts-and-visitors.sql
+```
+
+当前生产旧读者账号已在执行 006 前按确认清空。迁移后检查 `reader_users` 包含 `email` 字段，并确认 `site_visitors`、`site_visitor_days`、`reader_visits_daily` 三张表存在。新增访客和新增注册用户从新版部署后开始记录，既有 PV 无法还原为历史独立访客。
 
 后台 API 会校验 `ADMIN_TOKEN`；建议再用 Cloudflare Access 对 `/admin` 和 `/api/admin/*` 设置仅管理员可访问。公开页面只读取状态为 `published` 的记录。授权全文转载由管理员确认；导入链接会尝试提取可访问的正文和图片，无法完整取得时进入“需协助”，不会擅自补写或发布。R2 不可用时外部图片需要人工核对。
 

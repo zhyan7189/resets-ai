@@ -28,6 +28,6 @@ export async function onRequestGet({ request, env }) {
       WHERE a.status = 'published'
       ORDER BY published_sort_at DESC, a.id ASC`).all();
     const articles = result.results || [];
-    return json({ articles, limited:!user && await guestLimitEnabled(env.DB), free_article_id:articles[0]?.id || null });
+    return json({ articles, limited:!user && await guestLimitEnabled(env.DB), free_article_id:null });
   } catch { return json({ error:"articles_unavailable" }, 503); }
 }

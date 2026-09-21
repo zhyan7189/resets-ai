@@ -1,1 +1,25 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>注册读者账号 · Resets AI</title><link rel="stylesheet" href="/reader-account.css"></head><body data-mode="register"><div class="shell"><header class="mast"><a class="brand" href="/">Resets AI</a><a class="back" href="/">← 返回网站</a></header><main class="stage"><div class="intro"><span class="tag">读者账号</span><h1>注册后，阅读全部档案。</h1><p>访客可以阅读最新发布的 1 篇档案。注册读者账号后，所有已发布档案都可阅读。</p></div><section class="card"><h2>创建读者账号</h2><form id="account-form"><label>用户名<input name="username" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" required></label><p class="hint">3–24 位英文、数字或下划线。</p><label>密码<input name="password" type="password" autocomplete="new-password" minlength="7" required></label><p class="hint">长度必须大于 6 位。本站不会保存明文密码。</p><button class="submit" id="submit" type="submit">注册并开始阅读 ↗</button><p class="status" id="status" role="status" aria-live="polite"></p></form><p class="switch">已有账号？<a href="/reader-login.html">登录</a></p></section></main></div><script defer src="/reader-account.js"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#111b3f">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="icon" href="/favicon.ico" sizes="any"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest">
+  <title>注册或登录 · Resets AI</title><link rel="stylesheet" href="/reader-account.css">
+</head>
+<body data-initial-mode="register">
+  <main class="account-layout">
+    <section class="archive-showcase" aria-labelledby="showcase-title">
+      <a class="brand" href="/"><img src="/favicon.svg" alt=""><span>Resets AI</span></a>
+      <div class="showcase-copy"><div class="eyebrow">REAL-WORLD AI INTELLIGENCE</div><h1 id="showcase-title">先看到机会，<br>再动手赚钱。</h1><p>这里展示的每一张卡片都来自站内真实档案。注册后进入完整情报库，查看原始来源、操作步骤和持续更新。</p></div>
+      <div class="archive-mosaic" id="archive-mosaic" aria-live="polite"><div class="archive-empty">正在调取真实档案…</div></div>
+    </section>
+    <section class="account-side">
+      <div class="account-wrap"><span class="account-kicker">免费读者账号</span><h2 id="account-title">加入情报站</h2><p class="account-lead" id="account-lead">用邮箱创建账号，无需验证码。注册成功后立即进入首页。</p>
+        <div class="mode-tabs" role="tablist" aria-label="注册或登录"><button class="mode-tab active" id="register-tab" type="button" data-mode="register" role="tab" aria-selected="true">注册</button><button class="mode-tab" id="login-tab" type="button" data-mode="login" role="tab" aria-selected="false">登录</button></div>
+        <section class="account-card"><form id="account-form"><label>邮箱地址<input name="email" type="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="name@example.com" required></label><p class="hint" id="email-hint">只用于登录，不需要接收验证码。</p><label>密码<input name="password" type="password" autocomplete="new-password" minlength="7" required></label><p class="hint">密码长度必须大于 6 位。</p><button class="submit" id="submit" type="submit">注册并进入首页 ↗</button><p class="status" id="status" role="status" aria-live="polite"></p></form><p class="privacy">密码经过加盐哈希后保存；本站不会保存明文密码。</p></section>
+        <a class="back" href="/">← 返回网站</a>
+      </div>
+    </section>
+  </main>
+  <script defer src="/reader-account.js"></script>
+</body>
+</html>
