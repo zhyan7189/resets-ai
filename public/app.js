@@ -653,7 +653,7 @@ function closeArticleReader() {
 
 async function loadData() {
   try {
-    const response = await fetch("/api/resets", { headers:{ accept:"application/json" } });
+    const response = await fetch("/api/resets", { headers:{ accept:"application/json" }, cache:"no-store" });
     if (!response.ok) throw new Error("原站暂不可用");
     const data = await response.json();
     renderScheduledReset(data.scheduled);
