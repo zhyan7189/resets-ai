@@ -48,6 +48,7 @@ let activeTooltip = null;
 let pleaState = { cycleId:"", count:null, localCount:0 };
 let popularArticle = null;
 let impressionObserver;
+let scheduledReset = null;
 const seenImpressions = new Set();
 
 fetch("/api/analytics/visit", { method:"POST", keepalive:true }).catch(() => {});
@@ -135,6 +136,37 @@ function formatUtc(value) {
     timeZone:"UTC", year:"numeric", month:"long", day:"numeric",
     hour:"2-digit", minute:"2-digit", hourCycle:"h23",
   }).format(new Date(value)) + " UTC";
+}
+
+function scheduledRelativeLabel(value) {
+  const difference = Date.parse(value || "") - Date.now();
+  if (!Number.isFinite(difference)) return "时间待公布";
+  if (difference <= 0) return "等待确认";
+  const minutes = Math.max(1, Math.round(difference / 60_000));
+  if (minutes < 60) return `约 ${minutes} 分钟后`;
+  const hours = Math.max(1, Math.round(difference / 3_600_000));
+  if (hours < 48) return `约 ${hours} 小时后`;
+  return `约 ${Math.round(hours / 24)} 天后`;
+}
+
+function formatShanghaiTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return "时间待公布";
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone:"Asia/Shanghai", month:"long", day:"numeric",
+    hour:"2-digit", minute:"2-digit", hourCycle:"h23",
+  }).format(date) + " GMT+8";
+}
+
+function renderScheduledReset(event) {
+  const card = $("scheduled-card");
+  scheduledReset = event && typeof event === "object" ? event : null;
+  card.hidden = !scheduledReset;
+  if (!scheduledReset) return;
+  $("scheduled-heading").textContent = scheduledReset.reset_type === "banked" ? "已安排备用重置额度" : "已安排重置";
+  $("scheduled-countdown").textContent = scheduledRelativeLabel(scheduledReset.scheduled_for);
+  $("scheduled-date").textContent = formatShanghaiTime(scheduledReset.scheduled_for);
+  $("scheduled-link").href = httpsUrl(scheduledReset.tweet_url) || "https://codex-resets.com/";
 }
 
 function renderLatest(event) {
@@ -623,7 +655,9 @@ async function loadData() {
   try {
     const response = await fetch("/api/resets", { headers:{ accept:"application/json" } });
     if (!response.ok) throw new Error("原站暂不可用");
-    const events = normalizeEvents(await response.json());
+    const data = await response.json();
+    renderScheduledReset(data.scheduled);
+    const events = normalizeEvents(data);
     if (!events.length) throw new Error("原站暂无重置记录");
     const previousId = localStorage.getItem("last-reset-id");
     const latestEvent = events[0];
@@ -727,7 +761,8 @@ loadPublishedArticles();
 renderPopularArticle(null);
 loadPopularArticle();
 loadData();
-window.setInterval(loadData, 15 * 60 * 1000);
+window.setInterval(loadData, 60 * 1000);
+window.setInterval(() => { if (scheduledReset) renderScheduledReset(scheduledReset); }, 30 * 1000);
 window.setInterval(loadPopularArticle, 60 * 60 * 1000);
 window.setInterval(loadPleaCount, 15 * 1000);
 window.addEventListener("scroll", hideCellTooltip, { passive: true });

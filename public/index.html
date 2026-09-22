@@ -39,6 +39,15 @@
       .signal { white-space:nowrap; display:flex; align-items:center; gap:7px; font-size:12px; font-weight:700; }
       .signal i { width:9px; height:9px; border:2px solid var(--ink); border-radius:50%; background:#75d787; }
       .reset-card { position:relative; overflow:hidden; background:var(--card); border:3px solid var(--ink); border-radius:22px; box-shadow:7px 7px 0 var(--ink); padding:18px 24px 16px; background-image:radial-gradient(#e8e3d7 1.5px,transparent 1.5px); background-size:19px 19px; }
+      .scheduled-card { position:relative; overflow:hidden; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:16px; margin:0 0 18px; padding:18px 20px; border:3px solid var(--ink); border-radius:18px; background:linear-gradient(135deg,#d7e6ff 0%,#edf6ff 58%,#cbf4ea 100%); box-shadow:5px 5px 0 var(--ink); }
+      .scheduled-card::after { content:""; position:absolute; width:110px; height:110px; right:18%; bottom:-82px; border:2px solid rgba(25,39,83,.15); border-radius:50%; }
+      .scheduled-icon { position:relative; z-index:1; display:grid; place-items:center; width:48px; height:48px; border:2px solid var(--ink); border-radius:14px; background:var(--card); box-shadow:3px 3px 0 var(--ink); font-size:24px; }
+      .scheduled-copy { position:relative; z-index:1; min-width:0; }
+      .scheduled-heading { margin:0 0 4px; color:#5a6590; font-size:12px; font-weight:800; letter-spacing:.12em; }
+      .scheduled-timing { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px 12px; margin:0; }
+      .scheduled-countdown { font:800 clamp(25px,4vw,34px)/1.1 GenSen,Baloo,sans-serif; letter-spacing:-1px; }
+      .scheduled-date { padding:4px 8px; border:1.5px solid var(--ink); border-radius:999px; background:rgba(250,253,255,.78); font:700 11px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:nowrap; }
+      .scheduled-link { position:relative; z-index:1; white-space:nowrap; background:var(--card); }
       .eyebrow { margin:0 0 6px; font-size:13px; font-weight:800; letter-spacing:.13em; color:#5c5347; }
       .reset-main { display:grid; grid-template-columns:minmax(0,.88fr) minmax(0,1.12fr); align-items:start; gap:24px; }
       .reset-details { min-width:0; text-align:center; }
@@ -249,7 +258,7 @@
       .reset-plea-count { font-size:12px; }
       @media(max-width:700px) { .reset-main { grid-template-columns:1fr; gap:20px; } .reset-side { border-left:0; border-top:2px solid var(--ink); padding:19px 0 0; } }
       @media(max-width:1230px) { .rail { display:none; } }
-      @media(max-width:700px) { .shell { width:min(100% - 28px,808px); padding-top:18px; } .brand { font-size:30px; } .brand-sub,.signal { display:none; } .intro { margin:22px 0 15px; } .reset-card { padding:23px 20px; } .reset-number { font-size:58px; } .reset-main { align-items:center; gap:16px; } .reset-side { padding:19px 0 0; } .heat-scroll { overflow-x:auto; } .history-row { grid-template-columns:78px 1fr 18px; gap:9px; padding:11px; } .feature { grid-template-columns:1fr; } .feature-art { min-height:105px; } .article-grid { grid-template-columns:1fr; } .cell-tooltip { padding:13px 16px 14px; } .cell-tooltip-date { font-size:15px; } .cell-tooltip-copy { font-size:13px; } }
+      @media(max-width:700px) { .shell { width:min(100% - 28px,808px); padding-top:18px; } .brand { font-size:30px; } .brand-sub,.signal { display:none; } .intro { margin:22px 0 15px; } .scheduled-card { grid-template-columns:auto minmax(0,1fr); gap:13px; padding:16px; } .scheduled-icon { width:42px; height:42px; border-radius:12px; font-size:21px; } .scheduled-link { grid-column:1/-1; justify-self:stretch; text-align:center; } .reset-card { padding:23px 20px; } .reset-number { font-size:58px; } .reset-main { align-items:center; gap:16px; } .reset-side { padding:19px 0 0; } .heat-scroll { overflow-x:auto; } .history-row { grid-template-columns:78px 1fr 18px; gap:9px; padding:11px; } .feature { grid-template-columns:1fr; } .feature-art { min-height:105px; } .article-grid { grid-template-columns:1fr; } .cell-tooltip { padding:13px 16px 14px; } .cell-tooltip-date { font-size:15px; } .cell-tooltip-copy { font-size:13px; } }
       @media(max-width:700px) { .article-tools { display:block; } .tabs { margin-inline:-3px; } .article-search { width:100%; margin-top:10px; } }
       @media(max-width:700px) { .mast { flex-wrap:wrap; } .mast-nav { width:100%; justify-content:flex-end; } .mast .mast-nav .nav-history { display:none; } .mast-nav { flex-wrap:wrap; gap:6px; } .mast-nav .nav-pill { padding:6px 9px; font-size:11px; } }
       @media(max-width:700px) { .article-reader-panel { padding:20px 17px 18px; border-radius:14px; } .reader-title { font-size:24px; } .reader-cover { max-height:210px; } .reader-footer { align-items:flex-start; flex-direction:column; } }
@@ -273,6 +282,14 @@
       </header>
       <main>
         <div class="intro"><p class="intro-copy"><strong>关注 Codex 重置公告，</strong>也发现值得实践的 AI 机会。</p><span class="signal"><i></i>公开公告追踪中</span></div>
+        <section class="scheduled-card" id="scheduled-card" aria-labelledby="scheduled-heading" hidden>
+          <span class="scheduled-icon" aria-hidden="true">◷</span>
+          <div class="scheduled-copy">
+            <p class="scheduled-heading" id="scheduled-heading">已安排重置</p>
+            <p class="scheduled-timing"><strong class="scheduled-countdown" id="scheduled-countdown"></strong><span class="scheduled-date" id="scheduled-date"></span></p>
+          </div>
+          <a class="btn scheduled-link" id="scheduled-link" href="https://codex-resets.com/" target="_blank" rel="noopener noreferrer">查看公告 ↗</a>
+        </section>
         <section class="reset-card" aria-label="最新重置公告">
           <p class="eyebrow">最近一次 CODEX 额度重置</p>
           <div class="reset-main">
